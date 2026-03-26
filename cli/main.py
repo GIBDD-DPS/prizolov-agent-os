@@ -1,20 +1,27 @@
+
 import argparse
-from prizolov_os.agent import Agent
-from prizolov_os.kernel import Kernel
+from prizolov_os.core.kernel import Kernel
+from prizolov_os.core.orchestrator import Orchestrator
+from prizolov_os.memory.memory import Memory
+from prizolov_os.agents.research_agent import ResearchAgent
+from prizolov_os.agents.writer_agent import WriterAgent
 
 def main():
-    parser = argparse.ArgumentParser(description="Prizolov OS CLI")
-    parser.add_argument("command", help="Command to run")
-    parser.add_argument("--input", help="Input text")
-
+    parser = argparse.ArgumentParser()
+    parser.add_argument("task")
     args = parser.parse_args()
 
-    kernel = Kernel()
-    agent = Agent(role="Universal Agent")
+    agents = {
+        "research": ResearchAgent(),
+        "writer": WriterAgent()
+    }
 
-    if args.command == "run":
-        result = kernel.run(agent, args.input)
-        print(result)
+    memory = Memory()
+    orch = Orchestrator(agents, memory)
+    kernel = Kernel(orch)
+
+    result = kernel.run(args.task)
+    print("\n".join(result))
 
 if __name__ == "__main__":
     main()
