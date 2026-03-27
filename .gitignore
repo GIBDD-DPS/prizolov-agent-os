@@ -21,6 +21,7 @@ wheels/
 *.egg-info/
 .installed.cfg
 *.egg
+*.whl
 
 # Virtual environments
 venv/
@@ -34,26 +35,32 @@ ENV/
 *.swp
 *.swo
 *~
+.project
+.pydevproject
 
 # Testing
 .pytest_cache/
 .coverage
 htmlcov/
 .tox/
+*.log
 
-# ✅ ВАЖНО: Игнорируем .env с секретами
+# Environment variables
 .env
 .env.local
 .env.*.local
+*.env
 
-# ✅ Игнорируем файлы логов
-*.log
+# Data and logs
+data/*.json
+data/*.db
+data/*.sqlite
 logs/
+*.log
 
-# ✅ Игнорируем данные памяти (если содержат чувствительную информацию)
-data/memory.json
-*.db
-*.sqlite
+# Documentation
+docs/_build/
+*.ipynb_checkpoints/
 
 # OS
 .DS_Store
