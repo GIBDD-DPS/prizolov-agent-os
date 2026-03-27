@@ -83,7 +83,6 @@ class TestOrchestratorExecute:
         """Ошибка агента должна обрабатываться gracefully."""
         orch = Orchestrator()
         
-        # Создаём агент, который всегда падает
         class FailingAgent:
             def execute(self, task):
                 raise RuntimeError("Agent failed!")
