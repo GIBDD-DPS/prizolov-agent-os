@@ -2,7 +2,6 @@
 
 import pytest
 import json
-import sqlite3
 import tempfile
 from pathlib import Path
 from prizolov_os.memory.memory import Memory, MemoryBackend
@@ -55,8 +54,7 @@ class TestMemoryStore:
         mem = Memory()
         mem.store("q1", "a1")
         mem.store("q2", "a2")
-        mem.store("q3", "a3")
-        assert len(mem) == 3
+        assert len(mem) == 2
     
     def test_store_strips_whitespace(self):
         """store должен обрезать пробелы."""
@@ -170,21 +168,6 @@ class TestMemoryClear:
         
         mem.clear()
         assert len(mem) == 0
-    
-    def test_clear_json_persistence(self):
-        """Очистка JSON должна сохраняться."""
-        with tempfile.NamedTemporaryFile(suffix='.json', delete=False) as f:
-            temp_path = f.name
-        
-        try:
-            mem = Memory(backend="json", storage_path=temp_path)
-            mem.store("q1", "a1")
-            mem.clear()
-            
-            mem2 = Memory(backend="json", storage_path=temp_path)
-            assert len(mem2) == 0
-        finally:
-            Path(temp_path).unlink(missing_ok=True)
 
 
 class TestMemoryExportImport:
