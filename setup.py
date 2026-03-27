@@ -7,7 +7,7 @@ setup(
     name="prizolov-os",
     version="0.1.0",
     author="Dm.Andreyanov",
-    author_email="contact@prizolov.ru",
+    author_email="imperiapmk@gmail.com",
     description="Agentic AI Operating System for autonomous business orchestration",
     long_description=long_description,
     long_description_content_type="text/markdown",
