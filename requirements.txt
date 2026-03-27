@@ -1,8 +1,10 @@
 # Prizolov Agent OS - Dependencies
-# Минимальные зависимости для работы ядра
 
-# Для типизации (опционально, но рекомендуется)
+# Для типизации
 typing-extensions>=4.0.0
+
+# Для работы с .env файлами
+python-dotenv>=1.0.0
 
 # Для тестирования
 pytest>=7.0.0
@@ -13,9 +15,6 @@ black>=23.0.0
 ruff>=0.1.0
 mypy>=1.0.0
 
-# Для работы с окружением
-python-dotenv>=1.0.0
-
-# Для RAG (если будете использовать векторную БД)
-chromadb>=0.4.0
-sentence-transformers>=2.2.0
+# Для RAG (опционально)
+# chromadb>=0.4.0
+# sentence-transformers>=2.2.0
