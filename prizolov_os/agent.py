@@ -1,4 +1,4 @@
-from typing import Optional, Dict, Any, List
+from typing import Optional, Dict, Any, List, Tuple
 
 
 class Agent:
@@ -8,10 +8,10 @@ class Agent:
         self, 
         role: str, 
         constraints: Optional[Dict[str, Any]] = None
-    ):
-        self.role = role
-        self.constraints = constraints or {}
-        self.memory = []
+    ) -> None:
+        self.role: str = role
+        self.constraints: Dict[str, Any] = constraints or {}
+        self.memory: List[Tuple[str, str]] = []
     
     def apply_constraints(self, input_data: str) -> str:
         """
@@ -27,13 +27,11 @@ class Agent:
             TypeError: Если input_data не строка
             ValueError: Если найдены запрещённые токены
         """
-        # ✅ Валидация типа входных данных
         if not isinstance(input_data, str):
             raise TypeError(
                 f"Expected input_data to be str, got {type(input_data).__name__}"
             )
         
-        # Проверка на запрещённые токены
         if "forbidden_tokens" in self.constraints:
             for token in self.constraints["forbidden_tokens"]:
                 if token in input_data:
@@ -53,18 +51,12 @@ class Agent:
         Returns:
             Результат выполнения
         """
-        # Применяем ограничения перед выполнением
         validated_input = self.apply_constraints(input_data)
-        
-        # Базовая логика выполнения (можно расширить)
         result = f"[{self.role}] Обработано: {validated_input}"
-        
-        # Сохраняем в память
         self.memory.append((validated_input, result))
-        
         return result
     
-    def get_memory(self) -> List[tuple]:
+    def get_memory(self) -> List[Tuple[str, str]]:
         """Возвращает историю выполненных задач."""
         return self.memory.copy()
     
