@@ -1,2 +1,2 @@
 # tests/__init__.py
-# Пустой файл, делает tests пакетом Python
+"""Тесты для Prizolov Agent OS."""
