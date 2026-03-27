@@ -1,20 +1,6 @@
+# requirements.txt
 # Prizolov Agent OS - Dependencies
+# Для установки всех зависимостей: pip install -r requirements.txt
 
-# Для типизации
-typing-extensions>=4.0.0
-
-# Для работы с .env файлами
-python-dotenv>=1.0.0
-
-# Для тестирования
-pytest>=7.0.0
-pytest-cov>=4.0.0
-
-# Для линтинга и форматирования
-black>=23.0.0
-ruff>=0.1.0
-mypy>=1.0.0
-
-# Для RAG (опционально)
-# chromadb>=0.4.0
-# sentence-transformers>=2.2.0
+# Устанавливаем сам пакет в режиме разработки + все опциональные зависимости
+-e .[all]
