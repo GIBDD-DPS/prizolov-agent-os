@@ -10,30 +10,25 @@ from prizolov_os.agents.research_agent import ResearchAgent
 from prizolov_os.agents.writer_agent import WriterAgent
 
 
-def main():
+def main() -> None:
     """Точка входа CLI приложения."""
     print("=" * 50)
     print("Prizolov Agent OS - CLI Interface")
     print("=" * 50)
     
-    # Инициализация компонентов
     orchestrator = Orchestrator()
     kernel = Kernel(orchestrator)
     
-    # Создание агентов
     research_agent = ResearchAgent()
     writer_agent = WriterAgent()
     
-    # Пример выполнения задачи
     task = "Исследуй тему ИИ-агентов и напиши краткий отчёт"
     
     print(f"\n[>] Задача: {task}\n")
     
     try:
-        # Выполнение через ядро
         result = kernel.run(task)
         
-        # ✅ ИСПРАВЛЕННЫЙ ВЫВОД (с обратным слэшем!)
         if isinstance(result, list):
             print("\n".join(result))
         else:
