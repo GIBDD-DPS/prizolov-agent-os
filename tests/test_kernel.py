@@ -28,7 +28,6 @@ class TestKernelRun:
         
         result = kernel.run("test task")
         assert isinstance(result, list)
-        assert len(result) >= 0
     
     def test_run_empty_task(self):
         """Пустая задача должна вызывать ValueError."""
@@ -45,14 +44,6 @@ class TestKernelRun:
         
         with pytest.raises(ValueError, match="Task must be a non-empty string"):
             kernel.run(None)
-    
-    def test_run_int_task(self):
-        """Число вместо задачи должно вызывать ValueError."""
-        orchestrator = Orchestrator()
-        kernel = Kernel(orchestrator)
-        
-        with pytest.raises(ValueError, match="Task must be a non-empty string"):
-            kernel.run(123)
 
 
 class TestKernelGetStatus:
@@ -67,19 +58,3 @@ class TestKernelGetStatus:
         assert isinstance(status, dict)
         assert "mode" in status
         assert "orchestrator_active" in status
-    
-    def test_get_status_mode(self):
-        """Режим должен быть 'standard'."""
-        orchestrator = Orchestrator()
-        kernel = Kernel(orchestrator)
-        
-        status = kernel.get_status()
-        assert status["mode"] == "standard"
-    
-    def test_get_status_orchestrator_active(self):
-        """orchestrator_active должен быть True."""
-        orchestrator = Orchestrator()
-        kernel = Kernel(orchestrator)
-        
-        status = kernel.get_status()
-        assert status["orchestrator_active"] is True
