@@ -1,10 +1,11 @@
 import logging
 import sys
 from typing import Optional
+from .config import settings
 
 
 def setup_logging(
-    level: int = logging.INFO,
+    level: Optional[int] = None,
     log_file: Optional[str] = None,
     format_string: Optional[str] = None
 ) -> logging.Logger:
@@ -12,26 +13,28 @@ def setup_logging(
     Настраивает логгирование для всего приложения.
     
     Args:
-        level: Уровень логгирования (DEBUG, INFO, WARNING, ERROR, CRITICAL)
-        log_file: Путь к файлу для записи логов (если None - только консоль)
+        level: Уровень логирования (если None, берётся из config)
+        log_file: Путь к файлу для записи логов (если None, берётся из config)
         format_string: Формат сообщений логов
         
     Returns:
         Настроенный logger
     """
+    if level is None:
+        level = settings.get_log_level_int()
+    
+    if log_file is None:
+        log_file = settings.log_file
+    
     if format_string is None:
         format_string = (
             "%(asctime)s | %(levelname)-8s | %(name)s | %(message)s"
         )
     
-    # Создаём logger для проекта
     logger = logging.getLogger("prizolov_os")
     logger.setLevel(level)
-    
-    # Очищаем существующие обработчики
     logger.handlers.clear()
     
-    # Создаём форматтер
     formatter = logging.Formatter(format_string)
     
     # Консольный обработчик
@@ -42,6 +45,10 @@ def setup_logging(
     
     # Файловый обработчик (если указан)
     if log_file:
+        # Создаём директорию если не существует
+        log_path = Path(log_file)
+        log_path.parent.mkdir(parents=True, exist_ok=True)
+        
         file_handler = logging.FileHandler(log_file, encoding="utf-8")
         file_handler.setLevel(level)
         file_handler.setFormatter(formatter)
@@ -50,5 +57,4 @@ def setup_logging(
     return logger
 
 
-# Создаём logger по умолчанию
 logger = setup_logging()
