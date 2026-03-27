@@ -1,5 +1,6 @@
-from typing import Any, Optional, Dict
-from ..core.orchestrator import Orchestrator
+from typing import Any, Dict
+
+from .orchestrator import Orchestrator
 
 
 class Kernel:
