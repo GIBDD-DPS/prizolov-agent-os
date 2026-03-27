@@ -121,7 +121,7 @@ class TestAgentMemory:
         agent.execute("task1")
         memory = agent.get_memory()
         memory.append(("fake", "fake"))
-        assert len(agent.get_memory()) == 1  # Оригинал не изменился
+        assert len(agent.get_memory()) == 1
     
     def test_clear_memory(self):
         """Очистка памяти."""
