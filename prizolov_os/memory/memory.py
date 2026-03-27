@@ -1,10 +1,10 @@
-from typing import List, Tuple, Optional
+from typing import List, Tuple
 
 
 class Memory:
     """Простая память в виде списка кортежей (запрос, ответ)."""
     
-    def __init__(self):
+    def __init__(self) -> None:
         self.data: List[Tuple[str, str]] = []
     
     def store(self, query: str, response: str) -> None:
@@ -18,16 +18,13 @@ class Memory:
         Безопасный поиск по памяти.
         Возвращает пустую строку, если запрос некорректен или не найдено совпадений.
         """
-        # Валидация входных данных
         if not query or not isinstance(query, str):
             return ""
         
-        # Извлекаем ключевые слова из запроса
         keywords = query.strip().split()
         if not keywords:
             return ""
         
-        # Поиск по первому ключевому слову (можно расширить логику позже)
         first_keyword = keywords[0].lower()
         results = [
             response for stored_query, response in self.data 
