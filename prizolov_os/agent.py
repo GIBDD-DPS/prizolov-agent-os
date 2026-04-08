@@ -1,3 +1,5 @@
+"""Базовый класс для ИИ-агента."""
+
 import logging
 from typing import Optional, Dict, Any, List, Tuple
 
@@ -17,9 +19,19 @@ class Agent:
         self.memory: List[Tuple[str, str]] = []
         logger.debug(f"Agent initialized with role: {role}")
     
-    def apply_constraints(self, input_ str) -> str:
+    def apply_constraints(self, input_data: str) -> str:
         """
         Применяет ограничения к входным данным.
+        
+        Args:
+            input_data: Входная строка для проверки
+            
+        Returns:
+            Проверенную строку
+            
+        Raises:
+            TypeError: Если input_data не строка
+            ValueError: Если найдены запрещённые токены
         """
         if not isinstance(input_data, str):
             logger.error(f"Invalid input type: {type(input_data)}")
@@ -29,18 +41,24 @@ class Agent:
         
         if "forbidden_tokens" in self.constraints:
             for token in self.constraints["forbidden_tokens"]:
-                if token in input_
+                if token in input_data:
                     logger.warning(f"Forbidden token '{token}' detected")
                     raise ValueError(
                         f"Forbidden token '{token}' found in input data"
                     )
         
-        logger.debug(f"Constraints applied successfully")
+        logger.debug("Constraints applied successfully")
         return input_data
     
-    def execute(self, input_ str) -> str:
+    def execute(self, input_data: str) -> str:
         """
         Выполняет задачу агента.
+        
+        Args:
+            input_data: Входные данные для обработки
+            
+        Returns:
+            Результат выполнения
         """
         logger.info(f"Agent {self.role} executing task")
         
