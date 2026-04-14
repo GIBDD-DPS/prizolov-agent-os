@@ -1,4 +1,3 @@
-```markdown
 **For business owners:** Reduce operational chaos by orchestrating multiple AI agents — not just building chatbots.
 
 # 🤖 Prizolov Agent OS
@@ -49,15 +48,12 @@ from prizolov_os import AgentOrchestrator
 cashflow_agent = AgentOrchestrator.create("cashflow_predictor")
 result = cashflow_agent.run("Спрогнозировать остаток на счетах через 30 дней")
 print(result)
-```
 
 ---
 
 ## 📦 Установка
+Через pip (рекомендуется)
 
-### Через pip (рекомендуется)
-
-```bash
 # Базовая установка
 pip install prizolov-os
 
@@ -72,7 +68,3 @@ pip install "prizolov-os[llm]"
 
 # Все зависимости сразу
 pip install "prizolov-os[all]"
-```
-
-> **Примечание:** После установки не забудьте настроить переменные окружения (см. раздел [Конфигурация](#-конфигурация)).
-```
