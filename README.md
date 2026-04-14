@@ -1,3 +1,6 @@
+```markdown
+**For business owners:** Reduce operational chaos by orchestrating multiple AI agents — not just building chatbots.
+
 # 🤖 Prizolov Agent OS
 
 **Agentic AI Operating System** — фреймворк для оркестрации автономных ИИ-агентов с поддержкой RAG-архитектуры и принципами "Sovereign AI".
@@ -6,12 +9,16 @@
 [![Python 3.9+](https://img.shields.io/badge/python-3.9+-blue.svg)](https://www.python.org/downloads/)
 [![PyPI version](https://badge.fury.io/py/prizolov-os.svg)](https://pypi.org/project/prizolov-os/)
 [![Tests](https://github.com/GIBDD-DPS/prizolov-agent-os/actions/workflows/test.yml/badge.svg)](https://github.com/GIBDD-DPS/prizolov-agent-os/actions)
+[![Business Ready](https://img.shields.io/badge/Business-Ready-00aa00.svg)](https://prizolov.ru)
+
+🌐 [prizolov.ru](https://prizolov.ru) — AI solutions for business
 
 ---
 
 ## 📋 Оглавление
 
 - [Возможности](#-возможности)
+- [Пример для бизнеса](#-пример-для-бизнеса)
 - [Установка](#-установка)
 - [Быстрый старт](#-быстрый-старт)
 - [Конфигурация](#-конфигурация)
@@ -30,6 +37,19 @@
 - ⚙️ **Конфигурация** — гибкие настройки через `.env` и переменные окружения
 - 📊 **Логирование** — профессиональное логирование с разными уровнями
 - 🧪 **Тесты** — покрытие тестами >90%
+
+---
+
+## 💼 Пример для бизнеса
+
+```python
+from prizolov_os import AgentOrchestrator
+
+# Создаём агента для анализа финансового потока
+cashflow_agent = AgentOrchestrator.create("cashflow_predictor")
+result = cashflow_agent.run("Спрогнозировать остаток на счетах через 30 дней")
+print(result)
+```
 
 ---
 
@@ -52,3 +72,7 @@ pip install "prizolov-os[llm]"
 
 # Все зависимости сразу
 pip install "prizolov-os[all]"
+```
+
+> **Примечание:** После установки не забудьте настроить переменные окружения (см. раздел [Конфигурация](#-конфигурация)).
+```
