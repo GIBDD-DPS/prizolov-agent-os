@@ -7,29 +7,19 @@
 from core.execution import ExecutionEngine
 from core.director import Director
 from core.orchestrator import Orchestrator
-from core.meta import VERSION, SYSTEM_NAME
-
-from agents.sample_agent import SampleAgent
 from agents.echo_agent import EchoAgent
 
-
 def main():
-    print(f"{SYSTEM_NAME} v{VERSION} initialized")
-
-    agents = [
-        EchoAgent(),
-        SampleAgent(),
-    ]
-
+    # Используем только EchoAgent, чтобы не было вмешательства SampleAgent
+    agents = [EchoAgent()]
     orchestrator = Orchestrator(agents)
     director = Director(orchestrator)
     engine = ExecutionEngine(director)
-
+    
     while True:
         user_input = input(">> ")
         result = engine.run(user_input)
         print(result)
-
 
 if __name__ == "__main__":
     main()
