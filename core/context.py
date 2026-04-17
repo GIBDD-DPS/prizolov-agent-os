@@ -4,17 +4,15 @@
 # Organization: Prizolov Market / Prizolov Lab
 # ============================================
 
-from memory.memory_system import MemorySystem
-
-
 class ExecutionContext:
-    def __init__(self, user_input: str):
+    def __init__(self, user_input: str, memory):
         self.input = user_input
         self.state = {}
         self.history = []
         self.metadata = {}
 
-        self.memory = MemorySystem()
+        # 🔥 теперь память передаётся, а не создаётся
+        self.memory = memory
 
     def update(self, key, value):
         self.state[key] = value
