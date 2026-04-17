@@ -16,15 +16,16 @@ class Orchestrator:
             scored_agents.append((agent, score))
             context.log(f"{agent.name} score: {score}")
 
-        # сортировка по score + priority
         scored_agents.sort(key=lambda x: (x[1], x[0].priority), reverse=True)
 
         best_agent, best_score = scored_agents[0]
 
         if best_score < 0.3:
+            context.memory.store_episode("No suitable agent found")
             return "No suitable agent found"
 
         context.log(f"Selected agent: {best_agent.name}")
+        context.memory.store_fact("last_agent", best_agent.name)
 
         result = best_agent.run(context)
 
