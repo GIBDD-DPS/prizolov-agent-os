@@ -4,14 +4,18 @@
 # Organization: Prizolov Market / Prizolov Lab
 # ============================================
 
-class SampleAgent:
-    def __init__(self):
-        self.name = "SampleAgent"
+from agents.base_agent import BaseAgent
 
-    def can_handle(self, context):
-        return True  # пока принимает всё
+
+class SampleAgent(BaseAgent):
+    def __init__(self):
+        super().__init__(name="SampleAgent", priority=1)
+
+    def evaluate(self, context) -> float:
+        # базовый агент — всегда средний приоритет
+        return 0.6
 
     def run(self, context):
         user_input = context.input
-        response = f"Processed: {user_input}"
+        response = f"[SampleAgent] Processed: {user_input}"
         return response
