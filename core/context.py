@@ -11,7 +11,7 @@ class ExecutionContext:
         self.history = []
         self.metadata = {}
 
-        # 🔥 теперь память передаётся, а не создаётся
+        # 🔥 ВАЖНО: НЕ СОЗДАЁМ НОВУЮ ПАМЯТЬ
         self.memory = memory
 
     def update(self, key, value):
