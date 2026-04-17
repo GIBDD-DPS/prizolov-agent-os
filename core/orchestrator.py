@@ -9,6 +9,7 @@ class Orchestrator:
         self.agents = agents
 
     def process(self, context):
+        print("DEBUG: NEW ORCHESTRATOR VERSION")
         best_agent = None
         best_score = 0
 
