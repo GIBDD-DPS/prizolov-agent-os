@@ -9,33 +9,31 @@ class Orchestrator:
         self.agents = agents
 
     def process(self, context):
-        scored_agents = []
+        best_agent = None
+        best_score = 0
 
         for agent in self.agents:
             score = agent.evaluate(context)
-            scored_agents.append((agent, score))
             context.log(f"{agent.name} score: {score}")
 
-        scored_agents.sort(key=lambda x: (x[1], x[0].priority), reverse=True)
+            if score > best_score:
+                best_score = score
+                best_agent = agent
 
-        best_agent, best_score = scored_agents[0]
+        if not best_agent:
+            return "No suitable agent"
 
-        if best_score < 0.3:
-            return "No suitable agent found"
-
-        # 🔥 ПРАВИЛЬНАЯ ЛОГИКА
-        last_agent = context.memory.get_fact("last_agent")
+        # 👉 ДО выполнения — читаем прошлое
+        previous_agent = context.memory.get_fact("last_agent")
 
         context.log(f"Selected agent: {best_agent.name}")
 
         result = best_agent.run(context)
 
-        # сохраняем историю правильно
-        if last_agent:
-            context.memory.store_fact("previous_agent", last_agent)
+        # 👉 ПОСЛЕ выполнения — обновляем
+        if previous_agent:
+            context.memory.store_fact("previous_agent", previous_agent)
 
         context.memory.store_fact("last_agent", best_agent.name)
-
-        context.log(f"{best_agent.name} executed")
 
         return result
