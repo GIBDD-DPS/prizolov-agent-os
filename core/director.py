@@ -13,6 +13,8 @@ class Director:
 
         response = self.orchestrator.process(context)
 
+        context.memory.store_episode(f"Final response: {response}")
+
         context.log("Director finished")
 
         return response
