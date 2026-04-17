@@ -20,10 +20,6 @@ class SampleAgent(BaseAgent):
         previous_agent = context.memory.get_fact("previous_agent")
 
         if previous_agent:
-            response = f"[SampleAgent] Last agent was: {previous_agent} | Input: {user_input}"
-        else:
-            response = f"[SampleAgent] Processed: {user_input}"
+            return f"[SampleAgent] Last agent was: {previous_agent} | Input: {user_input}"
 
-        context.memory.store_fact("last_input", user_input)
-
-        return response
+        return f"[SampleAgent] Processed: {user_input}"
