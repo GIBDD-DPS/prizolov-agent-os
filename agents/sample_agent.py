@@ -17,10 +17,10 @@ class SampleAgent(BaseAgent):
     def run(self, context):
         user_input = context.input
 
-        last_agent = context.memory.get_fact("last_agent")
+        previous_agent = context.memory.get_fact("previous_agent")
 
-        if last_agent:
-            response = f"[SampleAgent] Last agent was: {last_agent} | Input: {user_input}"
+        if previous_agent:
+            response = f"[SampleAgent] Last agent was: {previous_agent} | Input: {user_input}"
         else:
             response = f"[SampleAgent] Processed: {user_input}"
 
