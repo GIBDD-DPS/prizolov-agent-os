@@ -15,11 +15,9 @@ class SampleAgent(BaseAgent):
         return 0.6
 
     def run(self, context):
-        user_input = context.input
-
         previous_agent = context.memory.get_fact("previous_agent")
 
         if previous_agent:
-            return f"[SampleAgent] Last agent was: {previous_agent} | Input: {user_input}"
+            return f"[SampleAgent] Last agent was: {previous_agent} | Input: {context.input}"
 
-        return f"[SampleAgent] Processed: {user_input}"
+        return f"[SampleAgent] Processed: {context.input}"
