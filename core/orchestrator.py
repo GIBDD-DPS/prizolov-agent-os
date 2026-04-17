@@ -21,18 +21,19 @@ class Orchestrator:
         best_agent, best_score = scored_agents[0]
 
         if best_score < 0.3:
-            context.memory.store_episode("No suitable agent found")
             return "No suitable agent found"
 
-        # ✅ сохраняем ПРЕДЫДУЩЕГО агента
-        previous_agent = context.memory.get_fact("last_agent")
+        # 🔥 ПРАВИЛЬНАЯ ЛОГИКА
+        last_agent = context.memory.get_fact("last_agent")
 
         context.log(f"Selected agent: {best_agent.name}")
 
         result = best_agent.run(context)
 
-        # ✅ обновляем память ТОЛЬКО ПОСЛЕ выполнения
-        context.memory.store_fact("previous_agent", previous_agent)
+        # сохраняем историю правильно
+        if last_agent:
+            context.memory.store_fact("previous_agent", last_agent)
+
         context.memory.store_fact("last_agent", best_agent.name)
 
         context.log(f"{best_agent.name} executed")
