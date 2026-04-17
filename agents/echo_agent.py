@@ -14,8 +14,7 @@ class EchoAgent(BaseAgent):
     def evaluate(self, context) -> float:
         if "echo" in context.input.lower():
             return 0.9
-        return 0.2
+        return 0.1
 
     def run(self, context):
-        context.memory.store_fact("echo_used", True)
         return f"[EchoAgent] {context.input}"
