@@ -12,10 +12,18 @@ class SampleAgent(BaseAgent):
         super().__init__(name="SampleAgent", priority=1)
 
     def evaluate(self, context) -> float:
-        # базовый агент — всегда средний приоритет
         return 0.6
 
     def run(self, context):
         user_input = context.input
-        response = f"[SampleAgent] Processed: {user_input}"
+
+        last_agent = context.memory.get_fact("last_agent")
+
+        if last_agent:
+            response = f"[SampleAgent] Last agent was: {last_agent} | Input: {user_input}"
+        else:
+            response = f"[SampleAgent] Processed: {user_input}"
+
+        context.memory.store_fact("last_input", user_input)
+
         return response
