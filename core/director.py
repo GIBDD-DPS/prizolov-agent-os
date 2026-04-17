@@ -9,10 +9,10 @@ class Director:
         self.orchestrator = orchestrator
 
     def handle(self, context):
-        context.log("Director received input")
+        context.log("Director started")
 
         response = self.orchestrator.process(context)
 
-        context.log("Director completed execution")
+        context.log("Director finished")
 
         return response
