@@ -17,4 +17,5 @@ class EchoAgent(BaseAgent):
         return 0.2
 
     def run(self, context):
+        context.memory.store_fact("echo_used", True)
         return f"[EchoAgent] {context.input}"
