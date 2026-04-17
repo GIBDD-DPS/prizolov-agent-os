@@ -10,12 +10,16 @@ from core.orchestrator import Orchestrator
 from core.meta import VERSION, SYSTEM_NAME
 
 from agents.sample_agent import SampleAgent
+from agents.echo_agent import EchoAgent
 
 
 def main():
     print(f"{SYSTEM_NAME} v{VERSION} initialized")
 
-    agents = [SampleAgent()]
+    agents = [
+        EchoAgent(),
+        SampleAgent(),
+    ]
 
     orchestrator = Orchestrator(agents)
     director = Director(orchestrator)
