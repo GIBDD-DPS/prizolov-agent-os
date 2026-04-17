@@ -9,10 +9,25 @@ class Orchestrator:
         self.agents = agents
 
     def process(self, context):
-        for agent in self.agents:
-            if agent.can_handle(context):
-                result = agent.run(context)
-                context.log(f"{agent.name} executed")
-                return result
+        scored_agents = []
 
-        return "No agent could handle request"
+        for agent in self.agents:
+            score = agent.evaluate(context)
+            scored_agents.append((agent, score))
+            context.log(f"{agent.name} score: {score}")
+
+        # сортировка по score + priority
+        scored_agents.sort(key=lambda x: (x[1], x[0].priority), reverse=True)
+
+        best_agent, best_score = scored_agents[0]
+
+        if best_score < 0.3:
+            return "No suitable agent found"
+
+        context.log(f"Selected agent: {best_agent.name}")
+
+        result = best_agent.run(context)
+
+        context.log(f"{best_agent.name} executed")
+
+        return result
