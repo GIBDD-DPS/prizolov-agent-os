@@ -10,21 +10,18 @@ class MemorySystem:
         self.semantic = {}
         self.working = {}
 
-    # ---------- Episodic ----------
     def store_episode(self, event: str):
         self.episodic.append(event)
 
     def get_episodes(self, limit=10):
         return self.episodic[-limit:]
 
-    # ---------- Semantic ----------
     def store_fact(self, key: str, value):
         self.semantic[key] = value
 
     def get_fact(self, key: str):
         return self.semantic.get(key)
 
-    # ---------- Working ----------
     def set_context(self, key: str, value):
         self.working[key] = value
 
