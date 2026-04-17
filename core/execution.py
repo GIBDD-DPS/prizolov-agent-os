@@ -12,10 +12,11 @@ class ExecutionEngine:
     def __init__(self, director):
         self.director = director
 
-        # 🔥 единая память для всей системы
+        # 🔥 ГЛОБАЛЬНАЯ ПАМЯТЬ (ОДИН ЭКЗЕМПЛЯР)
         self.memory = MemorySystem()
 
     def run(self, user_input: str):
+        # 🔥 ПЕРЕДАЁМ ТУ ЖЕ САМУЮ ПАМЯТЬ КАЖДЫЙ РАЗ
         context = ExecutionContext(user_input, self.memory)
 
         result = self.director.handle(context)
