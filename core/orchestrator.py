@@ -24,10 +24,16 @@ class Orchestrator:
             context.memory.store_episode("No suitable agent found")
             return "No suitable agent found"
 
+        # ✅ сохраняем ПРЕДЫДУЩЕГО агента
+        previous_agent = context.memory.get_fact("last_agent")
+
         context.log(f"Selected agent: {best_agent.name}")
-        context.memory.store_fact("last_agent", best_agent.name)
 
         result = best_agent.run(context)
+
+        # ✅ обновляем память ТОЛЬКО ПОСЛЕ выполнения
+        context.memory.store_fact("previous_agent", previous_agent)
+        context.memory.store_fact("last_agent", best_agent.name)
 
         context.log(f"{best_agent.name} executed")
 
