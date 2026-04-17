@@ -10,12 +10,11 @@ from core.orchestrator import Orchestrator
 from agents.echo_agent import EchoAgent
 
 def main():
-    # Используем только EchoAgent, чтобы не было вмешательства SampleAgent
-    agents = [EchoAgent()]
+    agents = [EchoAgent()]          # SampleAgent полностью исключён
     orchestrator = Orchestrator(agents)
     director = Director(orchestrator)
     engine = ExecutionEngine(director)
-    
+
     while True:
         user_input = input(">> ")
         result = engine.run(user_input)
