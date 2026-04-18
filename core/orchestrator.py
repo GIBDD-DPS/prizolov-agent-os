@@ -37,4 +37,6 @@ class Orchestrator:
 
         context.memory.store_fact("last_agent", best_agent.name)
 
+        context.memory.store_fact("last_agent", best_agent.name)
+
         return result
