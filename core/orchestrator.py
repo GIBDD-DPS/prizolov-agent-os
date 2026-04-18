@@ -9,7 +9,6 @@ class Orchestrator:
         self.agents = agents
 
     def process(self, context):
-        print("DEBUG: NEW ORCHESTRATOR VERSION")
         best_agent = None
         best_score = 0
 
@@ -24,19 +23,18 @@ class Orchestrator:
         if not best_agent:
             return "No suitable agent"
 
-        # 👉 ДО выполнения — читаем прошлое
+        # Читаем прошлого агента до выполнения
         previous_agent = context.memory.get_fact("last_agent")
 
         context.log(f"Selected agent: {best_agent.name}")
 
         result = best_agent.run(context)
 
-        # 👉 ПОСЛЕ выполнения — обновляем
+        # Сохраняем предыдущего агента (если был)
         if previous_agent:
             context.memory.store_fact("previous_agent", previous_agent)
 
-        context.memory.store_fact("last_agent", best_agent.name)
-
+        # Сохраняем текущего агента как последнего (только один раз)
         context.memory.store_fact("last_agent", best_agent.name)
 
         return result
