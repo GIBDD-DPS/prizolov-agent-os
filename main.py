@@ -4,15 +4,13 @@
 # Organization: Prizolov Market / Prizolov Lab
 # ============================================
 
-import os
-
 from core.execution import ExecutionEngine
 from core.director import Director
 from core.orchestrator import Orchestrator
 from agents.echo_agent import EchoAgent
 
 def main():
-    agents = [EchoAgent()]          # SampleAgent полностью исключён
+    agents = [EchoAgent()]
     orchestrator = Orchestrator(agents)
     director = Director(orchestrator)
     engine = ExecutionEngine(director)
