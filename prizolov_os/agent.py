@@ -164,7 +164,7 @@ class Agent:
 
         for iteration in range(1, self.max_iterations + 1):
             response = self.llm.complete(system=self.system_prompt, messages=messages, tools=tools)
-            _add_usage(usage, response.usage)
+            add_usage(usage, response.usage)
 
             def finish(text: str, stop_reason: str) -> AgentResult:
                 return AgentResult(text, stop_reason, iteration, usage, tool_results)
@@ -212,7 +212,7 @@ class Agent:
         )
 
 
-def _add_usage(total: Usage, part: Usage) -> None:
+def add_usage(total: Usage, part: Usage) -> None:
     total.input_tokens += part.input_tokens
     total.output_tokens += part.output_tokens
     total.cache_read_input_tokens += part.cache_read_input_tokens
