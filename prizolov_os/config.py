@@ -15,7 +15,10 @@ class Settings:
     Класс настроек приложения.
     
     Атрибуты:
-        api_key: API ключ для LLM (опционально)
+        api_key: API ключ Anthropic (если не задан, SDK ищет ANTHROPIC_API_KEY сам)
+        model: Модель Claude
+        effort: Глубина рассуждений модели (low, medium, high, xhigh, max)
+        max_tokens: Максимальная длина одного ответа модели в токенах
         memory_backend: Тип хранилища памяти (in_memory, json, sqlite)
         memory_path: Путь к файлу/БД памяти
         log_level: Уровень логирования (DEBUG, INFO, WARNING, ERROR)
@@ -25,6 +28,9 @@ class Settings:
         timeout: Таймаут запросов в секундах
     """
     api_key: Optional[str] = None
+    model: str = "claude-sonnet-5-5"
+    effort: str = "medium"
+    max_tokens: int = 16000
     memory_backend: str = "json"
     memory_path: str = "data/memory.json"
     log_level: str = "INFO"
@@ -50,7 +56,10 @@ class Settings:
             load_dotenv(env_file)
         
         return cls(
-            api_key=os.getenv("PRIZOLOV_API_KEY"),
+            api_key=os.getenv("ANTHROPIC_API_KEY") or os.getenv("PRIZOLOV_API_KEY"),
+            model=os.getenv("PRIZOLOV_MODEL", "claude-sonnet-5-5"),
+            effort=os.getenv("PRIZOLOV_EFFORT", "medium"),
+            max_tokens=int(os.getenv("PRIZOLOV_MAX_TOKENS", "16000")),
             memory_backend=os.getenv("PRIZOLOV_MEMORY_BACKEND", "json"),
             memory_path=os.getenv("PRIZOLOV_MEMORY_PATH", "data/memory.json"),
             log_level=os.getenv("PRIZOLOV_LOG_LEVEL", "INFO"),
@@ -91,6 +100,15 @@ class Settings:
                 "Must be 'in_memory', 'json', or 'sqlite'"
             )
         
+        if self.effort not in ["low", "medium", "high", "xhigh", "max"]:
+            raise ValueError(
+                f"Invalid effort: {self.effort}. "
+                "Must be 'low', 'medium', 'high', 'xhigh', or 'max'"
+            )
+
+        if self.max_tokens <= 0:
+            raise ValueError("max_tokens must be positive")
+
         if self.max_retries < 0:
             raise ValueError("max_retries must be non-negative")
         
