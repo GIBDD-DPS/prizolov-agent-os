@@ -1,3 +1,4 @@
+"""
 Prizolov AI Director v1.0
 Author: Dm.Andreyanov
 Project: Prizolov AI Empire Framework (prizolov.ru)
