@@ -19,6 +19,7 @@ class Settings:
         model: Модель Claude
         effort: Глубина рассуждений модели (low, medium, high, xhigh, max)
         max_tokens: Максимальная длина одного ответа модели в токенах
+        workspace_dir: Рабочая папка, в которой агенты читают и пишут файлы
         memory_backend: Тип хранилища памяти (in_memory, json, sqlite)
         memory_path: Путь к файлу/БД памяти
         log_level: Уровень логирования (DEBUG, INFO, WARNING, ERROR)
@@ -31,6 +32,7 @@ class Settings:
     model: str = "claude-sonnet-5-5"
     effort: str = "medium"
     max_tokens: int = 16000
+    workspace_dir: str = "workspace"
     memory_backend: str = "json"
     memory_path: str = "data/memory.json"
     log_level: str = "INFO"
@@ -60,6 +62,7 @@ class Settings:
             model=os.getenv("PRIZOLOV_MODEL", "claude-sonnet-5-5"),
             effort=os.getenv("PRIZOLOV_EFFORT", "medium"),
             max_tokens=int(os.getenv("PRIZOLOV_MAX_TOKENS", "16000")),
+            workspace_dir=os.getenv("PRIZOLOV_WORKSPACE", "workspace"),
             memory_backend=os.getenv("PRIZOLOV_MEMORY_BACKEND", "json"),
             memory_path=os.getenv("PRIZOLOV_MEMORY_PATH", "data/memory.json"),
             log_level=os.getenv("PRIZOLOV_LOG_LEVEL", "INFO"),

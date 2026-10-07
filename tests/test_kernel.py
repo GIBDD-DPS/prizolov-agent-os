@@ -4,6 +4,7 @@ import pytest
 from prizolov_os.core.kernel import Kernel
 from prizolov_os.core.orchestrator import Orchestrator
 from prizolov_os.agent import Agent
+from prizolov_os.llm import FakeLLMClient
 
 
 class TestKernelInit:
@@ -23,7 +24,7 @@ class TestKernelRun:
     def test_run_valid_task(self):
         """Запуск валидной задачи."""
         orchestrator = Orchestrator()
-        orchestrator.register_agent("test", Agent(role="test"))
+        orchestrator.register_agent("test", Agent(role="test", llm=FakeLLMClient()))
         kernel = Kernel(orchestrator)
         
         result = kernel.run("test task")

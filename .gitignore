@@ -52,6 +52,7 @@ htmlcov/
 *.env
 
 # Data and logs
+workspace/
 data/*.json
 data/*.db
 data/*.sqlite

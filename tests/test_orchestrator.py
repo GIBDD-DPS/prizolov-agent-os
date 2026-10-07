@@ -3,6 +3,7 @@
 import pytest
 from prizolov_os.core.orchestrator import Orchestrator
 from prizolov_os.agent import Agent
+from prizolov_os.llm import FakeLLMClient
 
 
 class TestOrchestratorInit:
@@ -21,7 +22,7 @@ class TestOrchestratorRegisterAgent:
     def test_register_agent_single(self):
         """Регистрация одного агента."""
         orch = Orchestrator()
-        agent = Agent(role="test")
+        agent = Agent(role="test", llm=FakeLLMClient())
         orch.register_agent("test_agent", agent)
         
         assert len(orch.agents) == 1
@@ -30,8 +31,8 @@ class TestOrchestratorRegisterAgent:
     def test_register_agent_multiple(self):
         """Регистрация нескольких агентов."""
         orch = Orchestrator()
-        orch.register_agent("agent1", Agent(role="1"))
-        orch.register_agent("agent2", Agent(role="2"))
+        orch.register_agent("agent1", Agent(role="1", llm=FakeLLMClient()))
+        orch.register_agent("agent2", Agent(role="2", llm=FakeLLMClient()))
         
         assert len(orch.agents) == 2
 
@@ -48,7 +49,7 @@ class TestOrchestratorExecute:
     def test_execute_one_agent(self):
         """Выполнение с одним агентом."""
         orch = Orchestrator()
-        orch.register_agent("test", Agent(role="test"))
+        orch.register_agent("test", Agent(role="test", llm=FakeLLMClient()))
         
         result = orch.execute("hello")
         assert len(result) == 1
@@ -79,7 +80,7 @@ class TestOrchestratorExecutionLog:
     def test_execution_log_after_execute(self):
         """Журнал после выполнения."""
         orch = Orchestrator()
-        orch.register_agent("test", Agent(role="test"))
+        orch.register_agent("test", Agent(role="test", llm=FakeLLMClient()))
         orch.execute("task")
         
         log = orch.get_execution_log()
