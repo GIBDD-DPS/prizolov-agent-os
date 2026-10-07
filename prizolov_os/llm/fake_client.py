@@ -43,9 +43,16 @@ class FakeLLMClient:
         messages: List[Dict[str, Any]],
         tools: Optional[List[Dict[str, Any]]] = None,
         max_tokens: Optional[int] = None,
+        output_schema: Optional[Dict[str, Any]] = None,
     ) -> LLMResponse:
         self.calls.append(
-            {"system": system, "messages": list(messages), "tools": tools, "max_tokens": max_tokens}
+            {
+                "system": system,
+                "messages": list(messages),
+                "tools": tools,
+                "max_tokens": max_tokens,
+                "output_schema": output_schema,
+            }
         )
         if self._responses:
             item = self._responses.pop(0)

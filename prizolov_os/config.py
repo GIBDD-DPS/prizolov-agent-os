@@ -4,9 +4,9 @@
 """
 
 import os
-from typing import Optional
+from dataclasses import dataclass
 from pathlib import Path
-from dataclasses import dataclass, field
+from typing import Optional
 
 
 @dataclass
@@ -20,8 +20,8 @@ class Settings:
         effort: Глубина рассуждений модели (low, medium, high, xhigh, max)
         max_tokens: Максимальная длина одного ответа модели в токенах
         workspace_dir: Рабочая папка, в которой агенты читают и пишут файлы
-        memory_backend: Тип хранилища памяти (in_memory, json, sqlite)
-        memory_path: Путь к файлу/БД памяти
+        db_path: Файл SQLite с памятью: диалоги, факты, уроки, версии промптов
+        self_check: Самопроверка ответов: complex (только сложные задачи), always, off
         log_level: Уровень логирования (DEBUG, INFO, WARNING, ERROR)
         log_file: Путь к файлу логов (опционально)
         security_level: Уровень безопасности (low, medium, high)
@@ -33,14 +33,14 @@ class Settings:
     effort: str = "medium"
     max_tokens: int = 16000
     workspace_dir: str = "workspace"
-    memory_backend: str = "json"
-    memory_path: str = "data/memory.json"
+    db_path: str = "data/prizolov.db"
+    self_check: str = "complex"
     log_level: str = "INFO"
     log_file: Optional[str] = None
     security_level: str = "high"
     max_retries: int = 3
     timeout: int = 30
-    
+
     @classmethod
     def from_env(cls) -> "Settings":
         """
@@ -52,26 +52,26 @@ class Settings:
         3. Значения по умолчанию
         """
         env_file = Path(".") / ".env"
-        
+
         if env_file.exists():
             from dotenv import load_dotenv
             load_dotenv(env_file)
-        
+
         return cls(
             api_key=os.getenv("ANTHROPIC_API_KEY") or os.getenv("PRIZOLOV_API_KEY"),
             model=os.getenv("PRIZOLOV_MODEL", "claude-sonnet-5-5"),
             effort=os.getenv("PRIZOLOV_EFFORT", "medium"),
             max_tokens=int(os.getenv("PRIZOLOV_MAX_TOKENS", "16000")),
             workspace_dir=os.getenv("PRIZOLOV_WORKSPACE", "workspace"),
-            memory_backend=os.getenv("PRIZOLOV_MEMORY_BACKEND", "json"),
-            memory_path=os.getenv("PRIZOLOV_MEMORY_PATH", "data/memory.json"),
+            db_path=os.getenv("PRIZOLOV_DB_PATH", "data/prizolov.db"),
+            self_check=os.getenv("PRIZOLOV_SELF_CHECK", "complex"),
             log_level=os.getenv("PRIZOLOV_LOG_LEVEL", "INFO"),
             log_file=os.getenv("PRIZOLOV_LOG_FILE"),
             security_level=os.getenv("PRIZOLOV_SECURITY_LEVEL", "high"),
             max_retries=int(os.getenv("PRIZOLOV_MAX_RETRIES", "3")),
             timeout=int(os.getenv("PRIZOLOV_TIMEOUT", "30")),
         )
-    
+
     def get_log_level_int(self) -> int:
         """Конвертирует строковый уровень логирования в int."""
         import logging
@@ -83,7 +83,7 @@ class Settings:
             "CRITICAL": logging.CRITICAL,
         }
         return levels.get(self.log_level.upper(), logging.INFO)
-    
+
     def validate(self) -> None:
         """
         Валидирует настройки.
@@ -96,13 +96,12 @@ class Settings:
                 f"Invalid security_level: {self.security_level}. "
                 "Must be 'low', 'medium', or 'high'"
             )
-        
-        if self.memory_backend not in ["in_memory", "json", "sqlite"]:
+
+        if self.self_check not in ["complex", "always", "off"]:
             raise ValueError(
-                f"Invalid memory_backend: {self.memory_backend}. "
-                "Must be 'in_memory', 'json', or 'sqlite'"
+                f"Invalid self_check: {self.self_check}. Must be 'complex', 'always', or 'off'"
             )
-        
+
         if self.effort not in ["low", "medium", "high", "xhigh", "max"]:
             raise ValueError(
                 f"Invalid effort: {self.effort}. "
@@ -114,7 +113,7 @@ class Settings:
 
         if self.max_retries < 0:
             raise ValueError("max_retries must be non-negative")
-        
+
         if self.timeout <= 0:
             raise ValueError("timeout must be positive")
 

@@ -2,7 +2,7 @@
 
 import logging
 from dataclasses import dataclass, field
-from typing import Any, Dict, Iterable, List, Optional, Tuple, Union
+from typing import Any, Callable, Dict, Iterable, List, Optional, Tuple, Union
 
 from .llm import LLMClient, LLMResponse, Usage, create_client
 from .tools import AnyTool, Approver, ToolRegistry, ToolResult
@@ -28,6 +28,7 @@ class AgentResult:
         iterations: Сколько раз агент обратился к модели.
         usage: Суммарный расход токенов.
         tool_results: Все вызовы инструментов по порядку.
+        messages: Полная история диалога после выполнения (для доработки ответа).
     """
 
     text: str
@@ -35,6 +36,7 @@ class AgentResult:
     iterations: int
     usage: Usage = field(default_factory=Usage)
     tool_results: List[ToolResult] = field(default_factory=list)
+    messages: List[Dict[str, Any]] = field(default_factory=list, repr=False)
 
     @property
     def completed(self) -> bool:
@@ -61,6 +63,7 @@ class Agent:
         max_iterations: int = 20,
         name: Optional[str] = None,
         description: str = "",
+        context_provider: Optional[Callable[[str], str]] = None,
     ) -> None:
         """
         Args:
@@ -74,6 +77,8 @@ class Agent:
             max_iterations: Максимум обращений к модели за одну задачу.
             name: Имя агента (по умолчанию - роль).
             description: Чем агент полезен; по описанию оркестратор выбирает агента.
+            context_provider: По тексту запроса возвращает дополнительный контекст
+                (например, уроки из прошлого опыта), который добавляется к запросу.
         """
         self.role: str = role
         self.name: str = name or role
@@ -83,6 +88,7 @@ class Agent:
         self.system_prompt: str = system_prompt or DEFAULT_SYSTEM_PROMPT.format(role=role)
         self.approver = approver
         self.max_iterations = max_iterations
+        self.context_provider = context_provider
         self.history: List[Dict[str, Any]] = []
         self.memory: List[Tuple[str, str]] = []
         self._llm = llm
@@ -118,7 +124,7 @@ class Agent:
     def run(self, task: str) -> AgentResult:
         """Решает задачу с чистого листа, не трогая историю диалога."""
         task = self.apply_constraints(task)
-        messages: List[Dict[str, Any]] = [{"role": "user", "content": task}]
+        messages: List[Dict[str, Any]] = [{"role": "user", "content": self._with_context(task)}]
         result = self._loop(messages)
         self.memory.append((task, result.text))
         return result
@@ -127,7 +133,7 @@ class Agent:
         """Продолжает диалог: агент помнит предыдущие сообщения."""
         message = self.apply_constraints(message)
         checkpoint = len(self.history)
-        self.history.append({"role": "user", "content": message})
+        self.history.append({"role": "user", "content": self._with_context(message)})
         result = self._loop(self.history)
         if result.stop_reason == "refusal":
             # Откатываем ход, чтобы отклонённый запрос не мешал следующим.
@@ -135,9 +141,21 @@ class Agent:
         self.memory.append((message, result.text))
         return result
 
+    def followup(self, messages: List[Dict[str, Any]], text: str) -> AgentResult:
+        """Добавляет сообщение в существующий диалог и продолжает работу.
+
+        Используется, например, чтобы агент доработал ответ по замечаниям.
+        """
+        messages.append({"role": "user", "content": text})
+        return self._loop(messages)
+
     def reset(self) -> None:
         """Начинает новый диалог."""
         self.history = []
+
+    def _with_context(self, text: str) -> str:
+        extra = self.context_provider(text) if self.context_provider else ""
+        return f"{extra}\n\n{text}" if extra else text
 
     def execute(self, input_data: str) -> str:
         """Выполняет задачу и возвращает только текст ответа."""
@@ -167,7 +185,7 @@ class Agent:
             add_usage(usage, response.usage)
 
             def finish(text: str, stop_reason: str) -> AgentResult:
-                return AgentResult(text, stop_reason, iteration, usage, tool_results)
+                return AgentResult(text, stop_reason, iteration, usage, tool_results, messages)
 
             if response.refused:
                 logger.warning(f"Agent {self.name}: model refused the request")
@@ -209,6 +227,7 @@ class Agent:
             self.max_iterations,
             usage,
             tool_results,
+            messages,
         )
 
 

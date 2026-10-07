@@ -54,7 +54,7 @@ htmlcov/
 # Data and logs
 workspace/
 data/*.json
-data/*.db
+data/
 data/*.sqlite
 logs/
 *.log

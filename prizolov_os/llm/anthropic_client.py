@@ -41,6 +41,7 @@ class AnthropicClient:
         messages: List[Dict[str, Any]],
         tools: Optional[List[Dict[str, Any]]] = None,
         max_tokens: Optional[int] = None,
+        output_schema: Optional[Dict[str, Any]] = None,
     ) -> LLMResponse:
         params: Dict[str, Any] = {
             "model": self.model,
@@ -55,6 +56,11 @@ class AnthropicClient:
         }
         if tools:
             params["tools"] = tools
+        if output_schema:
+            params["output_config"] = {
+                "effort": self.effort,
+                "format": {"type": "json_schema", "schema": output_schema},
+            }
 
         try:
             response = self._client.beta.messages.create(**params)

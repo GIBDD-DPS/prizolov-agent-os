@@ -79,6 +79,11 @@ class LLMClient(Protocol):
         messages: List[Dict[str, Any]],
         tools: Optional[List[Dict[str, Any]]] = None,
         max_tokens: Optional[int] = None,
+        output_schema: Optional[Dict[str, Any]] = None,
     ) -> LLMResponse:
-        """Отправляет диалог модели и возвращает её ответ."""
+        """Отправляет диалог модели и возвращает её ответ.
+
+        output_schema - JSON Schema: модель обязана ответить JSON по этой схеме
+        (текст ответа - валидный JSON).
+        """
         ...

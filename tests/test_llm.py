@@ -184,3 +184,21 @@ class TestSettingsLLM:
         config = Settings.from_env()
         assert config.api_key == "from-env"
         assert (config.model, config.effort) == ("claude-opus-5-5", "high")
+
+
+class TestStructuredOutput:
+    def test_output_schema_sent_in_output_config(self):
+        sdk = StubSDK(make_message([{"type": "text", "text": '{"score": 8}'}]))
+        schema = {"type": "object", "properties": {"score": {"type": "integer"}},
+                  "required": ["score"], "additionalProperties": False}
+        AnthropicClient(model="m", effort="high", client=sdk).complete(
+            system="s", messages=[], output_schema=schema
+        )
+        assert sdk.params["output_config"] == {
+            "effort": "high", "format": {"type": "json_schema", "schema": schema}
+        }
+
+    def test_fake_records_schema(self):
+        client = FakeLLMClient(['{"a": 1}'])
+        client.complete(system="s", messages=[], output_schema={"type": "object"})
+        assert client.calls[0]["output_schema"] == {"type": "object"}

@@ -22,8 +22,10 @@ from .builtin import (
     web_search_tool,
 )
 from .finance import cashflow_tool, market_tools
+from .memory_tools import memory_tools
 
 __all__ = [
+    "memory_tools",
     "cashflow_tool",
     "market_tools",
     "AnyTool",

@@ -42,6 +42,7 @@ class Delegation:
     iterations: int = 0
     usage: Usage = field(default_factory=Usage)
     error: str = ""
+    result: str = ""
 
 
 class DelegationLimitError(RuntimeError):
@@ -71,6 +72,7 @@ class Orchestrator:
         self.execution_log: List[Delegation] = []
         self._run_usage = Usage()
         self._run_delegations = 0
+        self.last_run_delegations: List[Delegation] = []
         self.director = Agent(
             role="директор",
             name="director",
@@ -91,6 +93,10 @@ class Orchestrator:
         """Продолжает диалог с Директором."""
         return self._track(lambda: self.director.chat(_require_task(message)))
 
+    def followup(self, messages: List[Dict[str, Any]], text: str) -> AgentResult:
+        """Продолжает существующий диалог Директора (например, доработка ответа)."""
+        return self._track(lambda: self.director.followup(messages, text))
+
     def reset(self) -> None:
         """Начинает новый диалог."""
         self.director.reset()
@@ -110,8 +116,10 @@ class Orchestrator:
         """Выполняет запрос и добавляет к расходу Директора расход специалистов."""
         self._run_usage = Usage()
         self._run_delegations = 0
+        log_start = len(self.execution_log)
         result: AgentResult = call()
         add_usage(result.usage, self._run_usage)
+        self.last_run_delegations = self.execution_log[log_start:]
         return result
 
     def _delegate(self, agent: str, task: str) -> str:
@@ -134,8 +142,8 @@ class Orchestrator:
             record.status, record.error = "error", str(e)
             logger.error(f"Specialist {agent} failed: {e}", exc_info=True)
             raise
-        record.status, record.iterations, record.usage = (
-            result.stop_reason, result.iterations, result.usage
+        record.status, record.iterations, record.usage, record.result = (
+            result.stop_reason, result.iterations, result.usage, result.text
         )
         add_usage(self._run_usage, result.usage)
 
