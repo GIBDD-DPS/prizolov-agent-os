@@ -8,7 +8,7 @@ from pathlib import Path
 from typing import Any, Callable, Dict, List, Union
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
-from .base import Tool, make_schema
+from .base import ServerTool, Tool, make_schema
 
 MAX_READ_BYTES = 200_000
 MAX_POWER = 1000
@@ -189,3 +189,17 @@ def file_tools(workspace: Workspace) -> List[Tool]:
 def default_tools(workspace_dir: Union[str, Path]) -> List[Tool]:
     """Базовый набор: калькулятор, дата и время, файлы."""
     return [calculator_tool(), datetime_tool(), *file_tools(Workspace(workspace_dir))]
+
+
+def web_search_tool(max_uses: int = 5) -> ServerTool:
+    """Веб-поиск на серверах Anthropic (оплачивается за каждый поиск)."""
+    return ServerTool(
+        "web_search", {"type": "web_search_20260209", "name": "web_search", "max_uses": max_uses}
+    )
+
+
+def web_fetch_tool(max_uses: int = 5) -> ServerTool:
+    """Чтение веб-страниц по ссылкам, которые уже есть в диалоге."""
+    return ServerTool(
+        "web_fetch", {"type": "web_fetch_20260209", "name": "web_fetch", "max_uses": max_uses}
+    )

@@ -156,3 +156,20 @@ class TestWorkspace:
     def test_default_tools(self, tmp_path):
         names = ToolRegistry(default_tools(tmp_path)).names()
         assert names == ["calculator", "current_datetime", "list_files", "read_file", "write_file"]
+
+
+class TestServerTools:
+    def test_spec_passed_through(self):
+        from prizolov_os.tools import web_fetch_tool, web_search_tool
+
+        registry = ToolRegistry([web_search_tool(max_uses=3), web_fetch_tool()])
+        assert registry.schemas() == [
+            {"type": "web_search_20260209", "name": "web_search", "max_uses": 3},
+            {"type": "web_fetch_20260209", "name": "web_fetch", "max_uses": 5},
+        ]
+
+    def test_not_executed_locally(self):
+        from prizolov_os.tools import web_search_tool
+
+        result = ToolRegistry([web_search_tool()]).execute(ToolCall("t1", "web_search", {}))
+        assert result.is_error

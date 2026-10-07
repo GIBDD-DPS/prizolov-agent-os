@@ -5,7 +5,7 @@ from dataclasses import dataclass, field
 from typing import Any, Dict, Iterable, List, Optional, Tuple, Union
 
 from .llm import LLMClient, LLMResponse, Usage, create_client
-from .tools import Approver, Tool, ToolRegistry, ToolResult
+from .tools import AnyTool, Approver, ToolRegistry, ToolResult
 
 logger = logging.getLogger(__name__)
 
@@ -55,11 +55,12 @@ class Agent:
         constraints: Optional[Dict[str, Any]] = None,
         *,
         llm: Optional[LLMClient] = None,
-        tools: Union[ToolRegistry, Iterable[Tool]] = (),
+        tools: Union[ToolRegistry, Iterable[AnyTool]] = (),
         system_prompt: Optional[str] = None,
         approver: Optional[Approver] = None,
         max_iterations: int = 20,
         name: Optional[str] = None,
+        description: str = "",
     ) -> None:
         """
         Args:
@@ -72,9 +73,11 @@ class Agent:
                 действия запрещены.
             max_iterations: Максимум обращений к модели за одну задачу.
             name: Имя агента (по умолчанию - роль).
+            description: Чем агент полезен; по описанию оркестратор выбирает агента.
         """
         self.role: str = role
         self.name: str = name or role
+        self.description: str = description
         self.constraints: Dict[str, Any] = constraints or {}
         self.tools: ToolRegistry = tools if isinstance(tools, ToolRegistry) else ToolRegistry(tools)
         self.system_prompt: str = system_prompt or DEFAULT_SYSTEM_PROMPT.format(role=role)

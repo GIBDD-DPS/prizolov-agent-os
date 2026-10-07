@@ -3,7 +3,7 @@
 import json
 import logging
 from dataclasses import dataclass
-from typing import Any, Callable, Dict, Iterable, List, Optional
+from typing import Any, Callable, Dict, Iterable, List, Optional, Union
 
 from ..llm import ToolCall
 
@@ -43,6 +43,24 @@ class Tool:
             "input_schema": self.input_schema,
             "strict": True,
         }
+
+
+@dataclass
+class ServerTool:
+    """Инструмент, который выполняют серверы Anthropic (веб-поиск, чтение страниц).
+
+    Модель вызывает его сама, результат приходит в том же ответе,
+    поэтому локально такой инструмент не выполняется.
+    """
+
+    name: str
+    spec: Dict[str, Any]
+
+    def to_api(self) -> Dict[str, Any]:
+        return dict(self.spec)
+
+
+AnyTool = Union[Tool, ServerTool]
 
 
 @dataclass
@@ -113,17 +131,17 @@ def validate_input(schema: Dict[str, Any], data: Any) -> None:
 class ToolRegistry:
     """Набор инструментов агента."""
 
-    def __init__(self, tools: Iterable[Tool] = ()) -> None:
-        self._tools: Dict[str, Tool] = {}
+    def __init__(self, tools: Iterable[AnyTool] = ()) -> None:
+        self._tools: Dict[str, AnyTool] = {}
         for tool in tools:
             self.add(tool)
 
-    def add(self, tool: Tool) -> None:
+    def add(self, tool: AnyTool) -> None:
         if tool.name in self._tools:
             raise ValueError(f"Инструмент '{tool.name}' уже зарегистрирован")
         self._tools[tool.name] = tool
 
-    def get(self, name: str) -> Optional[Tool]:
+    def get(self, name: str) -> Optional[AnyTool]:
         return self._tools.get(name)
 
     def names(self) -> List[str]:
@@ -149,6 +167,8 @@ class ToolRegistry:
         tool = self._tools.get(call.name)
         if tool is None:
             return error(f"инструмент '{call.name}' не существует")
+        if isinstance(tool, ServerTool):
+            return error(f"инструмент '{call.name}' выполняется на сервере")
         try:
             validate_input(tool.input_schema, call.input)
         except ToolInputError as e:
