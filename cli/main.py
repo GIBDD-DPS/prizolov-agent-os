@@ -7,8 +7,6 @@ from typing import List, Optional
 
 from prizolov_os.core.kernel import Kernel
 from prizolov_os.core.orchestrator import Orchestrator
-from prizolov_os.agents.research_agent import ResearchAgent
-from prizolov_os.agents.writer_agent import WriterAgent
 from prizolov_os.logging_config import setup_logging
 from prizolov_os.config import settings
 
@@ -39,8 +37,6 @@ def main() -> None:
     orchestrator = Orchestrator()
     kernel = Kernel(orchestrator)
     
-    research_agent = ResearchAgent()
-    writer_agent = WriterAgent()
     
     task = "Исследуй тему ИИ-агентов и напиши краткий отчёт"
     
