@@ -49,7 +49,7 @@ class TestBasics:
             "assistant", "researcher", "writer", "cashflow_analyst", "market_analyst"
         ]
         assert set(kernel.orchestrator.director.tools.names()) == {
-            "delegate", "remember", "recall", "propose_tool"
+            "delegate", "remember", "recall", "propose_tool", "search_knowledge"
         }
 
     def test_run_delegates(self, tmp_path):

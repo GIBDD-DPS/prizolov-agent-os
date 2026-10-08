@@ -31,11 +31,12 @@ from ..improvement import (
     propose_tool_tool,
     revision_request,
 )
+from ..knowledge import KnowledgeBase
 from ..llm import LLMClient, create_client
 from ..market import MarketData, MarketDataError
 from ..memory import APPROVED, PENDING, REJECTED, CustomToolRecord, Lesson, PromptVersion, Store
 from ..quality import QualityMonitor
-from ..tools import Approver, memory_tools
+from ..tools import Approver, knowledge_tool, memory_tools
 from ..tracing import Tracer
 from .orchestrator import Orchestrator
 
@@ -79,6 +80,7 @@ class Kernel:
         market: Optional[MarketData] = None,
         budget: Optional[Budget] = None,
         tracer: Optional[Tracer] = None,
+        knowledge: Optional[KnowledgeBase] = None,
     ) -> None:
         if self_check not in SELF_CHECK_MODES:
             raise ValueError(f"self_check должен быть одним из {SELF_CHECK_MODES}")
@@ -95,6 +97,7 @@ class Kernel:
         self.quality = QualityMonitor(self.store, self.events)
         self.budget = budget
         self.tracer = tracer
+        self.knowledge = knowledge
         if tracer is not None:
             tracer.attach(self.events)
         self._llm = llm
@@ -126,7 +129,10 @@ class Kernel:
         budget = Budget(store, settings.budget_task_usd, settings.budget_day_usd)
         metered = MeteredLLM(llm or create_client(), budget)
         engine = ForecastEngine(ForecastJournal(store))
-        specialists = create_specialists(metered, workspace_dir, approver, market, engine)
+        knowledge = KnowledgeBase(store, Path(workspace_dir or settings.workspace_dir))
+        specialists = create_specialists(
+            metered, workspace_dir, approver, market, engine, knowledge
+        )
         trace = settings.trace if trace is None else trace
         kernel = cls(
             Orchestrator(specialists, llm=metered, approver=approver),
@@ -137,6 +143,7 @@ class Kernel:
             market=market,
             budget=budget,
             tracer=Tracer(settings.trace_dir, settings.trace_content) if trace else None,
+            knowledge=knowledge,
         )
         if kernel.tracer is not None:
             kernel.tracer._session = lambda: kernel.session_id
@@ -204,6 +211,7 @@ class Kernel:
             "lessons": len(self.store.list_lessons()),
             "pending_tools": len(self.store.list_custom_tools(PENDING)),
             "forecasts": self.forecasts.counts(),
+            "knowledge": self.knowledge.stats() if self.knowledge else None,
         }
 
     # --- Самопроверка и уроки ------------------------------------------------
@@ -380,6 +388,8 @@ class Kernel:
         for tool in memory_tools(self.store):
             director.tools.add(tool)
         director.tools.add(propose_tool_tool(self.store, lambda: director.tools.names()))
+        if self.knowledge is not None:
+            director.tools.add(knowledge_tool(self.knowledge))
         for record in self.store.list_custom_tools(APPROVED):
             if record.name not in director.tools:
                 director.tools.add(build_tool(record))
