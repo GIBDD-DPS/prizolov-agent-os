@@ -1,12 +1,16 @@
+# Prizolov Agent OS 0.3.0 | Author: Dm.Andreyanov | Brand: Prizolov Lab | © 2026
+# SPDX-FileCopyrightText: 2026 Dm.Andreyanov / Prizolov Lab
+# SPDX-License-Identifier: Apache-2.0
+
 """
 Модуль конфигурации для Prizolov Agent OS.
 Загружает настройки из переменных окружения и .env файла.
 """
 
 import os
-from typing import Optional
+from dataclasses import dataclass
 from pathlib import Path
-from dataclasses import dataclass, field
+from typing import Optional
 
 
 @dataclass
@@ -15,9 +19,19 @@ class Settings:
     Класс настроек приложения.
     
     Атрибуты:
-        api_key: API ключ для LLM (опционально)
-        memory_backend: Тип хранилища памяти (in_memory, json, sqlite)
-        memory_path: Путь к файлу/БД памяти
+        api_key: API ключ Anthropic (если не задан, SDK ищет ANTHROPIC_API_KEY сам)
+        model: Модель Claude
+        effort: Глубина рассуждений модели (low, medium, high, xhigh, max)
+        max_tokens: Максимальная длина одного ответа модели в токенах
+        workspace_dir: Рабочая папка, в которой агенты читают и пишут файлы
+        db_path: Файл SQLite с памятью: диалоги, факты, уроки, версии промптов
+        self_check: Самопроверка ответов: complex (только сложные задачи), always, off
+        sign_output: Подписывать авторством текстовые файлы, которые создают агенты
+        budget_task_usd: Лимит расходов на одну задачу в долларах (0 - без лимита)
+        budget_day_usd: Лимит расходов в день в долларах (0 - без лимита)
+        trace: Писать журнал трассировки
+        trace_dir: Папка журналов трассировки
+        trace_content: Писать в журнал полные тексты (по умолчанию - сокращённые)
         log_level: Уровень логирования (DEBUG, INFO, WARNING, ERROR)
         log_file: Путь к файлу логов (опционально)
         security_level: Уровень безопасности (low, medium, high)
@@ -25,14 +39,24 @@ class Settings:
         timeout: Таймаут запросов в секундах
     """
     api_key: Optional[str] = None
-    memory_backend: str = "json"
-    memory_path: str = "data/memory.json"
+    model: str = "claude-sonnet-5-5"
+    effort: str = "medium"
+    max_tokens: int = 16000
+    workspace_dir: str = "workspace"
+    db_path: str = "data/prizolov.db"
+    self_check: str = "complex"
+    sign_output: bool = True
+    budget_task_usd: float = 1.0
+    budget_day_usd: float = 10.0
+    trace: bool = True
+    trace_dir: str = "logs"
+    trace_content: bool = False
     log_level: str = "INFO"
     log_file: Optional[str] = None
     security_level: str = "high"
     max_retries: int = 3
     timeout: int = 30
-    
+
     @classmethod
     def from_env(cls) -> "Settings":
         """
@@ -44,22 +68,32 @@ class Settings:
         3. Значения по умолчанию
         """
         env_file = Path(".") / ".env"
-        
+
         if env_file.exists():
             from dotenv import load_dotenv
             load_dotenv(env_file)
-        
+
         return cls(
-            api_key=os.getenv("PRIZOLOV_API_KEY"),
-            memory_backend=os.getenv("PRIZOLOV_MEMORY_BACKEND", "json"),
-            memory_path=os.getenv("PRIZOLOV_MEMORY_PATH", "data/memory.json"),
+            api_key=_real_key(os.getenv("ANTHROPIC_API_KEY") or os.getenv("PRIZOLOV_API_KEY")),
+            model=os.getenv("PRIZOLOV_MODEL", "claude-sonnet-5-5"),
+            effort=os.getenv("PRIZOLOV_EFFORT", "medium"),
+            max_tokens=int(os.getenv("PRIZOLOV_MAX_TOKENS", "16000")),
+            workspace_dir=os.getenv("PRIZOLOV_WORKSPACE", "workspace"),
+            db_path=os.getenv("PRIZOLOV_DB_PATH", "data/prizolov.db"),
+            self_check=os.getenv("PRIZOLOV_SELF_CHECK", "complex"),
+            sign_output=_flag("PRIZOLOV_SIGN_OUTPUT", True),
+            budget_task_usd=float(os.getenv("PRIZOLOV_BUDGET_TASK_USD", "1.0")),
+            budget_day_usd=float(os.getenv("PRIZOLOV_BUDGET_DAY_USD", "10.0")),
+            trace=_flag("PRIZOLOV_TRACE", True),
+            trace_dir=os.getenv("PRIZOLOV_TRACE_DIR", "logs"),
+            trace_content=_flag("PRIZOLOV_TRACE_CONTENT", False),
             log_level=os.getenv("PRIZOLOV_LOG_LEVEL", "INFO"),
             log_file=os.getenv("PRIZOLOV_LOG_FILE"),
             security_level=os.getenv("PRIZOLOV_SECURITY_LEVEL", "high"),
             max_retries=int(os.getenv("PRIZOLOV_MAX_RETRIES", "3")),
             timeout=int(os.getenv("PRIZOLOV_TIMEOUT", "30")),
         )
-    
+
     def get_log_level_int(self) -> int:
         """Конвертирует строковый уровень логирования в int."""
         import logging
@@ -71,7 +105,7 @@ class Settings:
             "CRITICAL": logging.CRITICAL,
         }
         return levels.get(self.log_level.upper(), logging.INFO)
-    
+
     def validate(self) -> None:
         """
         Валидирует настройки.
@@ -84,18 +118,47 @@ class Settings:
                 f"Invalid security_level: {self.security_level}. "
                 "Must be 'low', 'medium', or 'high'"
             )
-        
-        if self.memory_backend not in ["in_memory", "json", "sqlite"]:
+
+        if self.self_check not in ["complex", "always", "off"]:
             raise ValueError(
-                f"Invalid memory_backend: {self.memory_backend}. "
-                "Must be 'in_memory', 'json', or 'sqlite'"
+                f"Invalid self_check: {self.self_check}. Must be 'complex', 'always', or 'off'"
             )
-        
+
+        if self.effort not in ["low", "medium", "high", "xhigh", "max"]:
+            raise ValueError(
+                f"Invalid effort: {self.effort}. "
+                "Must be 'low', 'medium', 'high', 'xhigh', or 'max'"
+            )
+
+        if self.max_tokens <= 0:
+            raise ValueError("max_tokens must be positive")
+
+        if self.budget_task_usd < 0 or self.budget_day_usd < 0:
+            raise ValueError("Лимиты расходов не могут быть отрицательными")
+
         if self.max_retries < 0:
             raise ValueError("max_retries must be non-negative")
-        
+
         if self.timeout <= 0:
             raise ValueError("timeout must be positive")
+
+
+def _flag(name: str, default: bool) -> bool:
+    value = os.getenv(name)
+    if value is None:
+        return default
+    return value.strip().lower() not in ("false", "0", "no", "off", "")
+
+
+PLACEHOLDER_KEYS = {"your_api_key_here", "your-api-key", "sk-ant-..."}
+
+
+def _real_key(value: Optional[str]) -> Optional[str]:
+    """Заглушку из .env.example не считаем ключом, иначе она перекроет настоящую
+    авторизацию (например, профиль `ant auth login`)."""
+    if not value or value.strip() in PLACEHOLDER_KEYS:
+        return None
+    return value.strip()
 
 
 # Глобальный экземпляр настроек

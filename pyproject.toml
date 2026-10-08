@@ -1,3 +1,7 @@
+# Prizolov Agent OS 0.3.0 | Author: Dm.Andreyanov | Brand: Prizolov Lab | © 2026
+# SPDX-FileCopyrightText: 2026 Dm.Andreyanov / Prizolov Lab
+# SPDX-License-Identifier: Apache-2.0
+
 # pyproject.toml
 [build-system]
 requires = ["setuptools>=61.0", "wheel"]
@@ -5,11 +9,11 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "prizolov-os"
-version = "0.2.0.dev0"
+dynamic = ["version"]
 description = "Agentic AI Operating System for autonomous business orchestration"
 readme = { file = "README.md", content-type = "text/markdown" }
-license = { text = "MIT" }
-requires-python = ">=3.9"
+license = { text = "Apache-2.0" }
+requires-python = ">=3.10"
 authors = [
     { name = "Dm.Andreyanov", email = "contact@prizolov.ru" }
 ]
@@ -20,9 +24,8 @@ keywords = ["ai", "agents", "rag", "orchestration", "sovereign-ai", "llm"]
 classifiers = [
     "Development Status :: 3 - Alpha",
     "Intended Audience :: Developers",
-    "License :: OSI Approved :: MIT License",
+    "License :: OSI Approved :: Apache Software License",
     "Programming Language :: Python :: 3",
-    "Programming Language :: Python :: 3.9",
     "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
@@ -33,6 +36,9 @@ classifiers = [
 dependencies = [
     "typing-extensions>=4.0.0",
     "python-dotenv>=1.0.0",
+    "anthropic>=1.11.0",
+    "rich>=13.0.0",
+    "tzdata; sys_platform == 'win32'",
 ]
 
 [project.optional-dependencies]
@@ -49,11 +55,6 @@ rag = [
     "sentence-transformers>=2.2.0",
     "numpy>=1.24.0",
 ]
-llm = [
-    "openai>=1.0.0",
-    "anthropic>=0.10.0",
-    "tiktoken>=0.5.0",
-]
 api = [
     "fastapi>=0.100.0",
     "uvicorn>=0.23.0",
@@ -62,7 +63,6 @@ api = [
 all = [
     "prizolov-os[dev]",
     "prizolov-os[rag]",
-    "prizolov-os[llm]",
     "prizolov-os[api]",
 ]
 
@@ -74,7 +74,10 @@ Homepage = "https://github.com/GIBDD-DPS/prizolov-agent-os"
 Documentation = "https://prizolov-os.readthedocs.io"
 Repository = "https://github.com/GIBDD-DPS/prizolov-agent-os"
 Issues = "https://github.com/GIBDD-DPS/prizolov-agent-os/issues"
-Changelog = "https://github.com/GIBDD-DPS/prizolov-agent-os/blob/main/CHANGELOG.md"
+Brand = "https://prizolov.ru"
+
+[tool.setuptools.dynamic]
+version = { attr = "prizolov_os.__about__.__version__" }
 
 [tool.setuptools.packages.find]
 where = ["."]
@@ -88,7 +91,7 @@ python_functions = ["test_*"]
 addopts = ["-v", "--tb=short"]
 
 [tool.mypy]
-python_version = "3.9"
+python_version = "3.10"
 warn_return_any = true
 warn_unused_configs = true
 disallow_untyped_defs = true
@@ -98,7 +101,7 @@ ignore_missing_imports = true
 
 [tool.ruff]
 line-length = 100
-target-version = "py39"
+target-version = "py310"
 select = ["E", "F", "W", "I", "N", "UP", "ANN", "S"]
 ignore = ["ANN101", "ANN102", "S101"]
 
@@ -108,5 +111,5 @@ ignore = ["ANN101", "ANN102", "S101"]
 
 [tool.black]
 line-length = 100
-target-version = ["py39", "py310", "py311"]
+target-version = ["py310", "py311", "py312"]
 include = '\.pyi?$'
