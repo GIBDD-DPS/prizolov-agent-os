@@ -154,3 +154,27 @@ def print_llm_error(console: Console, error: Exception) -> None:
 
 def print_code(console: Console, code: str, title: str) -> None:
     console.print(Panel(Syntax(code, "python", line_numbers=True), title=escape(title)))
+
+
+def print_report(console: Console, report: Any) -> None:
+    """Отчёт по активу: состояние, таблица прогнозов, надёжность."""
+    from rich.table import Table
+
+    from prizolov_os.reports import DISCLAIMER, TABLE_HEADER, table_rows
+
+    s = report.summary
+    console.print(f"[bold]Отчёт: {escape(report.title)}[/]  "
+                  f"[dim]{s['first_date']} – {s['last_date']}, {s['observations']} наблюдений[/]")
+    console.print(
+        f"Цена {report.last_price:,.2f} ({s['last_date']}) · за период {s['change_pct']:+.2f}% · "
+        f"волатильность {s['volatility_annual_pct']}% · RSI {s['indicators'].get('rsi_14')}"
+        .replace(",", " "), highlight=False,
+    )
+    table = Table(*TABLE_HEADER, title="Прогнозы", show_lines=False)
+    for cells in table_rows(report):
+        table.add_row(*[escape(c) for c in cells])
+    console.print(table)
+    for row in report.rows:
+        summary = escape(row.reliability.get("summary", ""))
+        console.print(f"[dim]{row.horizon_days} дн.: {summary}[/]")
+    console.print(f"[italic]{escape(DISCLAIMER)}[/]")

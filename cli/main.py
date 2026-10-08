@@ -14,7 +14,8 @@ import argparse
 import logging
 import os
 import sys
-from typing import Callable, List, Optional
+from pathlib import Path
+from typing import Any, Callable, List, Optional
 
 from rich.console import Console
 
@@ -44,6 +45,11 @@ def build_parser() -> argparse.ArgumentParser:
     run = sub.add_parser("run", help="выполнить одну задачу")
     run.add_argument("task", nargs="+", help="текст задачи")
     sub.add_parser("sessions", help="список сохранённых диалогов")
+    report = sub.add_parser("report", help="отчёт по активу без Claude: прогнозы, таблица, график")
+    report.add_argument("symbol", help="тикер или код: GOLD, USD (ЦБ), GC=F, BTC-USD (Yahoo), SBER")
+    report.add_argument("--source", choices=["yahoo", "moex", "cbr"], help="источник данных")
+    report.add_argument("--horizons", default="1,7,15,30", help="горизонты в днях через запятую")
+    report.add_argument("--history", type=int, default=365, help="дней истории")
     sub.add_parser("telegram", help="запустить Telegram-бота")
     return parser
 
@@ -64,6 +70,9 @@ def main(
     except ValueError as e:
         console.print(f"[red]Ошибка конфигурации: {e}[/]")
         return 1
+    if args.command == "report":
+        setup_logging(level=logging.DEBUG if args.verbose else logging.ERROR)
+        return run_report(console, args)
     if args.command == "telegram":
         from .telegram.bot import run as run_telegram
 
@@ -99,6 +108,38 @@ def main(
             console.print(f"[red]{e}[/]")
             return 1
     app.loop()
+    return 0
+
+
+def run_report(console: Console, args: argparse.Namespace, market: Any = None) -> int:
+    """prizolov report: прогнозы без участия модели, сохраняются в журнал для сверки."""
+    from prizolov_os.forecasting import ForecastEngine, ForecastJournal
+    from prizolov_os.market import MarketData, MarketDataError
+    from prizolov_os.memory import Store
+    from prizolov_os.reports import market_report, save_report
+
+    from .render import print_report
+
+    try:
+        horizons = sorted({int(h) for h in args.horizons.split(",") if h.strip()})
+    except ValueError:
+        console.print("[red]--horizons: числа через запятую, например 1,7,15,30[/]")
+        return 1
+    if not horizons or not all(1 <= h <= 365 for h in horizons):
+        console.print("[red]Горизонты должны быть от 1 до 365 дней[/]")
+        return 1
+    engine = ForecastEngine(ForecastJournal(Store(settings.db_path)))
+    try:
+        report = market_report(
+            market or MarketData(), engine, args.symbol, args.source, horizons, args.history
+        )
+    except MarketDataError as e:
+        console.print(f"[red]Не удалось получить котировки: {e}[/]")
+        return 1
+    path = save_report(report, Path(settings.workspace_dir) / "reports")
+    print_report(console, report)
+    console.print(f"\nОтчёт: {path}\nГрафик: {report.chart}")
+    console.print("[dim]Прогнозы записаны в журнал и будут сверены с фактом (/forecasts).[/]")
     return 0
 
 
