@@ -4,6 +4,8 @@ import logging
 from dataclasses import dataclass, field
 from typing import Any, Callable, Dict, Iterable, List, Optional, Tuple, Union
 
+from . import events as ev
+from .events import EventBus
 from .llm import LLMClient, LLMResponse, Usage, create_client
 from .tools import AnyTool, Approver, ToolRegistry, ToolResult
 
@@ -89,6 +91,7 @@ class Agent:
         self.approver = approver
         self.max_iterations = max_iterations
         self.context_provider = context_provider
+        self.events: Optional[EventBus] = None
         self.history: List[Dict[str, Any]] = []
         self.memory: List[Tuple[str, str]] = []
         self._llm = llm
@@ -153,6 +156,10 @@ class Agent:
         """Начинает новый диалог."""
         self.history = []
 
+    def _emit(self, type: str, **data: Any) -> None:
+        if self.events is not None:
+            self.events.emit(type, self.name, **data)
+
     def _with_context(self, text: str) -> str:
         extra = self.context_provider(text) if self.context_provider else ""
         return f"{extra}\n\n{text}" if extra else text
@@ -181,8 +188,21 @@ class Agent:
         response: Optional[LLMResponse] = None
 
         for iteration in range(1, self.max_iterations + 1):
+            self._emit(ev.LLM_REQUEST, iteration=iteration)
             response = self.llm.complete(system=self.system_prompt, messages=messages, tools=tools)
             add_usage(usage, response.usage)
+            self._emit(
+                ev.LLM_RESPONSE,
+                stop_reason=response.stop_reason,
+                model=response.model,
+                usage=response.usage,
+            )
+            for block in response.content:
+                if block.get("type") == "server_tool_use":
+                    self._emit(
+                        ev.TOOL_CALL, tool=block.get("name", ""), input=block.get("input") or {},
+                        server=True,
+                    )
 
             def finish(text: str, stop_reason: str) -> AgentResult:
                 return AgentResult(text, stop_reason, iteration, usage, tool_results, messages)
@@ -213,7 +233,15 @@ class Agent:
             if response.stop_reason != "tool_use" or not calls:
                 return finish(response.text, "end_turn")
 
-            results = [self.tools.execute(call, self.approver) for call in calls]
+            results = []
+            for call in calls:
+                self._emit(ev.TOOL_CALL, tool=call.name, input=call.input, server=False)
+                result = self.tools.execute(call, self.approver)
+                self._emit(
+                    ev.TOOL_RESULT, tool=call.name, is_error=result.is_error,
+                    output=result.output[:500],
+                )
+                results.append(result)
             tool_results.extend(results)
             # Все результаты - одним сообщением, как требует API.
             messages.append({"role": "user", "content": [r.to_api() for r in results]})

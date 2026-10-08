@@ -202,3 +202,14 @@ class TestStructuredOutput:
         client = FakeLLMClient(['{"a": 1}'])
         client.complete(system="s", messages=[], output_schema={"type": "object"})
         assert client.calls[0]["output_schema"] == {"type": "object"}
+
+
+def test_missing_credentials_reported_clearly():
+    sdk = StubSDK(TypeError('"Could not resolve authentication method. Expected one of api_key"'))
+    with pytest.raises(LLMError, match="ANTHROPIC_API_KEY"):
+        AnthropicClient(model="m", client=sdk).complete(system="s", messages=[])
+
+
+def test_placeholder_key_ignored(monkeypatch):
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "your_api_key_here")
+    assert Settings.from_env().api_key is None

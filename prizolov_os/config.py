@@ -58,7 +58,7 @@ class Settings:
             load_dotenv(env_file)
 
         return cls(
-            api_key=os.getenv("ANTHROPIC_API_KEY") or os.getenv("PRIZOLOV_API_KEY"),
+            api_key=_real_key(os.getenv("ANTHROPIC_API_KEY") or os.getenv("PRIZOLOV_API_KEY")),
             model=os.getenv("PRIZOLOV_MODEL", "claude-sonnet-5-5"),
             effort=os.getenv("PRIZOLOV_EFFORT", "medium"),
             max_tokens=int(os.getenv("PRIZOLOV_MAX_TOKENS", "16000")),
@@ -116,6 +116,17 @@ class Settings:
 
         if self.timeout <= 0:
             raise ValueError("timeout must be positive")
+
+
+PLACEHOLDER_KEYS = {"your_api_key_here", "your-api-key", "sk-ant-..."}
+
+
+def _real_key(value: Optional[str]) -> Optional[str]:
+    """Заглушку из .env.example не считаем ключом, иначе она перекроет настоящую
+    авторизацию (например, профиль `ant auth login`)."""
+    if not value or value.strip() in PLACEHOLDER_KEYS:
+        return None
+    return value.strip()
 
 
 # Глобальный экземпляр настроек

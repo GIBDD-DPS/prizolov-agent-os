@@ -4,7 +4,9 @@ import logging
 from dataclasses import dataclass, field
 from typing import Any, Dict, Iterable, List, Optional, Union
 
+from .. import events as ev
 from ..agent import Agent, AgentResult, add_usage
+from ..events import EventBus
 from ..llm import LLMClient, Usage
 from ..tools import Approver, Tool, make_schema
 
@@ -136,12 +138,15 @@ class Orchestrator:
 
         record = Delegation(agent=agent, task=task, status="running")
         self.execution_log.append(record)
+        self._emit(ev.DELEGATION_START, specialist=agent, task=task)
         try:
             result = specialist.run(task)
         except Exception as e:
             record.status, record.error = "error", str(e)
+            self._emit(ev.DELEGATION_END, specialist=agent, status="error", error=str(e))
             logger.error(f"Specialist {agent} failed: {e}", exc_info=True)
             raise
+        self._emit(ev.DELEGATION_END, specialist=agent, status=result.stop_reason)
         record.status, record.iterations, record.usage, record.result = (
             result.stop_reason, result.iterations, result.usage, result.text
         )
@@ -150,6 +155,20 @@ class Orchestrator:
         if result.completed:
             return result.text
         return f"{result.text}\n\n[{agent} не завершил задачу: {result.stop_reason}]"
+
+    @property
+    def events(self) -> Optional[EventBus]:
+        return self.director.events
+
+    @events.setter
+    def events(self, bus: Optional[EventBus]) -> None:
+        """Подключает шину событий к Директору и всем специалистам."""
+        for agent in [self.director, *self.specialists.values()]:
+            agent.events = bus
+
+    def _emit(self, type: str, **data: Any) -> None:
+        if self.events is not None:
+            self.events.emit(type, self.director.name, **data)
 
     def _delegate_tool(self) -> Tool:
         return Tool(

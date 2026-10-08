@@ -74,6 +74,13 @@ class AnthropicClient:
             raise LLMError(f"Ошибка Anthropic API ({e.status_code}): {e.message}") from e
         except anthropic.APIConnectionError as e:
             raise LLMError("Нет соединения с Anthropic API") from e
+        except TypeError as e:
+            # Так SDK сообщает, что не нашёл ни ключа, ни другого способа авторизации.
+            if "authentication" not in str(e):
+                raise
+            raise LLMError(
+                "Не задан ключ Anthropic: добавьте ANTHROPIC_API_KEY в .env"
+            ) from e
 
         if response.stop_reason == "refusal":
             details = getattr(response, "stop_details", None)

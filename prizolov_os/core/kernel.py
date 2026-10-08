@@ -5,9 +5,11 @@ import uuid
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple, Union
 
+from .. import events as ev
 from ..agent import Agent, AgentResult, add_usage
 from ..agents import create_specialists
 from ..config import settings
+from ..events import EventBus
 from ..improvement import (
     Critic,
     LessonExtractor,
@@ -58,6 +60,8 @@ class Kernel:
         self.self_check = self_check
         self.session_id: str = session_id or _new_session_id()
         self.last_review: Optional[Review] = None
+        self.events = EventBus()
+        self.orchestrator.events = self.events
         self._llm = llm
         self._last: Optional[Tuple[str, str]] = None
         # Исходные промпты из кода: к ним возвращает откат версий.
@@ -168,8 +172,11 @@ class Kernel:
         self.last_review = review
         add_usage(result.usage, review.usage)
         logger.info(f"Self-check score: {review.score}")
+        self.events.emit(ev.SELF_CHECK, "critic", score=review.score, issues=review.issues,
+                         usage=review.usage)
         if not critic.needs_revision(review):
             return result
+        self.events.emit(ev.REVISION, "director", issues=review.issues)
 
         if review.lesson:
             self.store.add_lesson("director", review.lesson, source="critic")
