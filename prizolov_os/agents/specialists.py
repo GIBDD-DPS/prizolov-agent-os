@@ -18,6 +18,7 @@ from ..tools import (
     Workspace,
     calculator_tool,
     cashflow_tool,
+    chart_tools,
     datetime_tool,
     default_tools,
     file_tools,
@@ -78,6 +79,8 @@ CASHFLOW_PROMPT = """Ты - финансовый аналитик Prizolov Agent
 разрыва.
 - Предлагай конкретные действия: что сократить, какие платежи перенести, какой \
 резерв держать.
+- Если пользователь хочет наглядности или отчёт, нарисуй графики (chart_cashflow) и \
+назови пути к файлам.
 - Прогноз - статистическая оценка по истории, а не гарантия; говори об этом.
 - Сообщай надёжность из forecast.reliability. Если в ответе есть forecast.verified_now, \
 расскажи, насколько сбылись прошлые прогнозы.""" + COMMON_RULES
@@ -87,6 +90,8 @@ MARKET_PROMPT = """Ты - рыночный аналитик Prizolov Agent OS: �
 
 - Получай данные только инструментами: analyze_market (Yahoo Finance, Московская \
 биржа, ЦБ РФ) или analyze_price_csv для файлов пользователя. Не называй цены по памяти.
+- Если пользователь просит график или отчёт, нарисуй его (chart_market) и назови путь \
+к файлу.
 - Выбирай подходящий источник: российские акции - moex, официальный курс рубля и \
 учётные цены металлов ЦБ - cbr, остальное - yahoo.
 - В ответе: текущая цена и дата данных, динамика, ключевые индикаторы (тренд по \
@@ -180,7 +185,14 @@ def create_cashflow_analyst(
             "и риск кассового разрыва."
         ),
         system_prompt=CASHFLOW_PROMPT,
-        tools=[cashflow_tool(workspace, forecasts), calculator_tool(), datetime_tool(), *read_only],
+        tools=[
+            cashflow_tool(workspace, forecasts),
+            *[t for t in chart_tools(MarketData(), workspace, forecasts)
+              if t.name == "chart_cashflow"],
+            calculator_tool(),
+            datetime_tool(),
+            *read_only,
+        ],
         llm=llm,
         approver=approver,
     )
@@ -205,6 +217,8 @@ def create_market_analyst(
         system_prompt=MARKET_PROMPT,
         tools=[
             *market_tools(market or MarketData(), workspace, forecasts),
+            *[t for t in chart_tools(market or MarketData(), workspace, forecasts)
+              if t.name == "chart_market"],
             calculator_tool(),
             datetime_tool(),
             *read_only,

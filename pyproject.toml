@@ -38,6 +38,10 @@ dependencies = [
     "python-dotenv>=1.0.0",
     "anthropic>=1.11.0",
     "rich>=13.0.0",
+    "pypdf>=4.0.0",
+    "python-docx>=1.1.0",
+    "openpyxl>=3.1.0",
+    "matplotlib>=3.8.0",
     "tzdata; sys_platform == 'win32'",
 ]
 

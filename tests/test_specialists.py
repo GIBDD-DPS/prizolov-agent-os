@@ -40,10 +40,10 @@ def test_all_specialists_created(specialists):
         ("assistant", {"calculator", "current_datetime", "list_files", "read_file", "write_file"}),
         ("researcher", {"web_search", "web_fetch", "list_files", "read_file", "current_datetime"}),
         ("writer", {"list_files", "read_file", "write_file"}),
-        ("cashflow_analyst", {"analyze_cashflow", "calculator", "current_datetime",
-                              "list_files", "read_file"}),
-        ("market_analyst", {"analyze_market", "analyze_price_csv", "calculator",
-                            "current_datetime", "list_files", "read_file"}),
+        ("cashflow_analyst", {"analyze_cashflow", "chart_cashflow", "calculator",
+                              "current_datetime", "list_files", "read_file"}),
+        ("market_analyst", {"analyze_market", "analyze_price_csv", "chart_market",
+                            "calculator", "current_datetime", "list_files", "read_file"}),
     ],
 )
 def test_tool_sets(specialists, name, expected_tools):
