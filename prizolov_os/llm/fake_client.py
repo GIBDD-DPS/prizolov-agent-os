@@ -1,3 +1,7 @@
+# Prizolov Agent OS 0.3.0 | Author: Dm.Andreyanov | Brand: Prizolov Lab | © 2026
+# SPDX-FileCopyrightText: 2026 Dm.Andreyanov / Prizolov Lab
+# SPDX-License-Identifier: Apache-2.0
+
 """Офлайн-заглушка LLM для тестов и демонстраций без API-ключа."""
 
 from typing import Any, Dict, List, Optional, Union

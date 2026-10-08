@@ -1,3 +1,7 @@
+# Prizolov Agent OS 0.3.0 | Author: Dm.Andreyanov | Brand: Prizolov Lab | © 2026
+# SPDX-FileCopyrightText: 2026 Dm.Andreyanov / Prizolov Lab
+# SPDX-License-Identifier: Apache-2.0
+
 """Загрузка истории цен: Yahoo Finance, Московская биржа (ISS), ЦБ РФ.
 
 Все источники бесплатные и не требуют ключей. HTTP-запрос вынесен в функцию
@@ -13,9 +17,10 @@ from dataclasses import dataclass, field
 from datetime import date, datetime, timedelta, timezone
 from typing import Callable, Dict, List, Optional, Tuple
 
+from ..__about__ import USER_AGENT
+
 Fetch = Callable[[str], bytes]
 
-USER_AGENT = "Mozilla/5.0 (compatible; prizolov-os)"
 
 # Коды валют ЦБ РФ (VAL_NM_RQ) и номиналы котировок.
 CBR_CURRENCIES: Dict[str, str] = {

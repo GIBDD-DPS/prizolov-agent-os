@@ -1,3 +1,7 @@
+# Prizolov Agent OS 0.3.0 | Author: Dm.Andreyanov | Brand: Prizolov Lab | © 2026
+# SPDX-FileCopyrightText: 2026 Dm.Andreyanov / Prizolov Lab
+# SPDX-License-Identifier: Apache-2.0
+
 """Проверка методов на истории (walk-forward).
 
 Берём момент в прошлом, делаем прогноз только по данным до него и сравниваем

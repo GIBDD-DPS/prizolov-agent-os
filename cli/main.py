@@ -1,4 +1,8 @@
 #!/usr/bin/env python3
+# Prizolov Agent OS 0.3.0 | Author: Dm.Andreyanov | Brand: Prizolov Lab | © 2026
+# SPDX-FileCopyrightText: 2026 Dm.Andreyanov / Prizolov Lab
+# SPDX-License-Identifier: Apache-2.0
+
 """Командная строка Prizolov Agent OS.
 
     prizolov chat [--session ID]   интерактивный диалог
@@ -14,6 +18,7 @@ from typing import Callable, List, Optional
 
 from rich.console import Console
 
+from prizolov_os.__about__ import HEADER, PROJECT_ID
 from prizolov_os.config import settings
 from prizolov_os.core.kernel import SELF_CHECK_MODES, Kernel
 from prizolov_os.logging_config import setup_logging
@@ -29,6 +34,7 @@ def build_parser() -> argparse.ArgumentParser:
         prog="prizolov", description="Prizolov Agent OS - команда ИИ-агентов"
     )
     parser.add_argument("-v", "--verbose", action="store_true", help="подробный лог в консоли")
+    parser.add_argument("--version", action="version", version=f"{HEADER}\n{PROJECT_ID}")
     parser.add_argument(
         "--self-check", choices=SELF_CHECK_MODES, help="режим самопроверки ответов"
     )

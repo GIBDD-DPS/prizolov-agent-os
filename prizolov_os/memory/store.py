@@ -1,3 +1,7 @@
+# Prizolov Agent OS 0.3.0 | Author: Dm.Andreyanov | Brand: Prizolov Lab | © 2026
+# SPDX-FileCopyrightText: 2026 Dm.Andreyanov / Prizolov Lab
+# SPDX-License-Identifier: Apache-2.0
+
 """Постоянная память Prizolov OS на SQLite.
 
 Хранит диалоги, факты о пользователе, уроки агентов, версии системных
@@ -12,6 +16,14 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Union
 
+from ..__about__ import (
+    PROJECT_ID,
+    __author__,
+    __brand__,
+    __copyright__,
+    __title__,
+    __version__,
+)
 from .search import rank
 
 SCHEMA = """
@@ -41,6 +53,10 @@ CREATE TABLE IF NOT EXISTS prompt_versions (
     status TEXT NOT NULL,
     note TEXT NOT NULL DEFAULT '',
     created_at TEXT NOT NULL
+);
+CREATE TABLE IF NOT EXISTS meta (
+    key TEXT PRIMARY KEY,
+    value TEXT NOT NULL
 );
 CREATE TABLE IF NOT EXISTS custom_tools (
     name TEXT PRIMARY KEY,
@@ -113,6 +129,18 @@ class Store:
         self._lock = threading.Lock()
         with self._lock:
             self._conn.executescript(SCHEMA)
+        # Метка авторства: остаётся в каждой базе, созданной программой.
+        for key, value in (
+            ("product", __title__), ("author", __author__), ("brand", __brand__),
+            ("copyright", __copyright__), ("project_id", PROJECT_ID),
+        ):
+            self._execute("INSERT OR IGNORE INTO meta (key, value) VALUES (?, ?)", (key, value))
+        self._execute(
+            "INSERT OR REPLACE INTO meta (key, value) VALUES ('version', ?)", (__version__,)
+        )
+
+    def meta(self) -> Dict[str, str]:
+        return {r["key"]: r["value"] for r in self._query("SELECT key, value FROM meta")}
 
     def close(self) -> None:
         self._conn.close()

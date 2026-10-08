@@ -1,3 +1,7 @@
+# Prizolov Agent OS 0.3.0 | Author: Dm.Andreyanov | Brand: Prizolov Lab | © 2026
+# SPDX-FileCopyrightText: 2026 Dm.Andreyanov / Prizolov Lab
+# SPDX-License-Identifier: Apache-2.0
+
 """
 Модуль конфигурации для Prizolov Agent OS.
 Загружает настройки из переменных окружения и .env файла.
@@ -22,6 +26,7 @@ class Settings:
         workspace_dir: Рабочая папка, в которой агенты читают и пишут файлы
         db_path: Файл SQLite с памятью: диалоги, факты, уроки, версии промптов
         self_check: Самопроверка ответов: complex (только сложные задачи), always, off
+        sign_output: Подписывать авторством текстовые файлы, которые создают агенты
         log_level: Уровень логирования (DEBUG, INFO, WARNING, ERROR)
         log_file: Путь к файлу логов (опционально)
         security_level: Уровень безопасности (low, medium, high)
@@ -35,6 +40,7 @@ class Settings:
     workspace_dir: str = "workspace"
     db_path: str = "data/prizolov.db"
     self_check: str = "complex"
+    sign_output: bool = True
     log_level: str = "INFO"
     log_file: Optional[str] = None
     security_level: str = "high"
@@ -65,6 +71,8 @@ class Settings:
             workspace_dir=os.getenv("PRIZOLOV_WORKSPACE", "workspace"),
             db_path=os.getenv("PRIZOLOV_DB_PATH", "data/prizolov.db"),
             self_check=os.getenv("PRIZOLOV_SELF_CHECK", "complex"),
+            sign_output=os.getenv("PRIZOLOV_SIGN_OUTPUT", "true").lower()
+            not in ("false", "0", "no"),
             log_level=os.getenv("PRIZOLOV_LOG_LEVEL", "INFO"),
             log_file=os.getenv("PRIZOLOV_LOG_FILE"),
             security_level=os.getenv("PRIZOLOV_SECURITY_LEVEL", "high"),

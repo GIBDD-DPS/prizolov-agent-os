@@ -1,3 +1,7 @@
+# Prizolov Agent OS 0.3.0 | Author: Dm.Andreyanov | Brand: Prizolov Lab | © 2026
+# SPDX-FileCopyrightText: 2026 Dm.Andreyanov / Prizolov Lab
+# SPDX-License-Identifier: Apache-2.0
+
 # pyproject.toml
 [build-system]
 requires = ["setuptools>=61.0", "wheel"]
@@ -5,10 +9,10 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "prizolov-os"
-version = "0.2.0.dev0"
+dynamic = ["version"]
 description = "Agentic AI Operating System for autonomous business orchestration"
 readme = { file = "README.md", content-type = "text/markdown" }
-license = { text = "MIT" }
+license = { text = "Apache-2.0" }
 requires-python = ">=3.10"
 authors = [
     { name = "Dm.Andreyanov", email = "contact@prizolov.ru" }
@@ -20,7 +24,7 @@ keywords = ["ai", "agents", "rag", "orchestration", "sovereign-ai", "llm"]
 classifiers = [
     "Development Status :: 3 - Alpha",
     "Intended Audience :: Developers",
-    "License :: OSI Approved :: MIT License",
+    "License :: OSI Approved :: Apache Software License",
     "Programming Language :: Python :: 3",
     "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
@@ -70,7 +74,10 @@ Homepage = "https://github.com/GIBDD-DPS/prizolov-agent-os"
 Documentation = "https://prizolov-os.readthedocs.io"
 Repository = "https://github.com/GIBDD-DPS/prizolov-agent-os"
 Issues = "https://github.com/GIBDD-DPS/prizolov-agent-os/issues"
-Changelog = "https://github.com/GIBDD-DPS/prizolov-agent-os/blob/main/CHANGELOG.md"
+Brand = "https://prizolov.ru"
+
+[tool.setuptools.dynamic]
+version = { attr = "prizolov_os.__about__.__version__" }
 
 [tool.setuptools.packages.find]
 where = ["."]

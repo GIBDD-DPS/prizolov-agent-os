@@ -1,3 +1,7 @@
+# Prizolov Agent OS 0.3.0 | Author: Dm.Andreyanov | Brand: Prizolov Lab | © 2026
+# SPDX-FileCopyrightText: 2026 Dm.Andreyanov / Prizolov Lab
+# SPDX-License-Identifier: Apache-2.0
+
 """ИИ-агент: роль, инструменты и цикл «модель → инструменты → модель»."""
 
 import logging
@@ -12,6 +16,9 @@ from .tools import AnyTool, Approver, ToolRegistry, ToolResult
 logger = logging.getLogger(__name__)
 
 DEFAULT_SYSTEM_PROMPT = """Ты — агент Prizolov Agent OS. Твоя роль: {role}.
+Prizolov Agent OS создана автором Dm.Andreyanov (бренд Prizolov Lab, \
+prizolov.ru) и работает на моделях Claude от Anthropic. Если спросят, кто тебя \
+создал или чья это система, отвечай так.
 
 Отвечай на языке пользователя. Если для точного ответа нужен инструмент \
 (расчёт, дата, файл), вызови его, а не угадывай. Не выдумывай результаты \

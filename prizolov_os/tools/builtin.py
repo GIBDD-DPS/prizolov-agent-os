@@ -1,3 +1,7 @@
+# Prizolov Agent OS 0.3.0 | Author: Dm.Andreyanov | Brand: Prizolov Lab | © 2026
+# SPDX-FileCopyrightText: 2026 Dm.Andreyanov / Prizolov Lab
+# SPDX-License-Identifier: Apache-2.0
+
 """Встроенные инструменты: калькулятор, дата и время, файлы в рабочей папке."""
 
 import ast
@@ -5,9 +9,11 @@ import math
 import operator
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Callable, Dict, List, Union
+from typing import Any, Callable, Dict, List, Optional, Union
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
+from ..__about__ import SIGNATURE
+from ..config import settings
 from .base import ServerTool, Tool, make_schema
 
 MAX_READ_BYTES = 200_000
@@ -113,11 +119,23 @@ def datetime_tool() -> Tool:
     )
 
 
+SIGNED_SUFFIXES = {".md": "\n\n---\n_{}_\n", ".txt": "\n\n---\n{}\n", ".html": "\n<!-- {} -->\n"}
+
+
+def sign(path: Path, content: str) -> str:
+    """Добавляет подпись авторства в текстовый документ (один раз)."""
+    template = SIGNED_SUFFIXES.get(path.suffix.lower())
+    if template is None or SIGNATURE in content:
+        return content
+    return content.rstrip("\n") + template.format(SIGNATURE)
+
+
 class Workspace:
     """Рабочая папка агента. Пути за её пределами запрещены."""
 
-    def __init__(self, root: Union[str, Path]) -> None:
+    def __init__(self, root: Union[str, Path], sign_output: Optional[bool] = None) -> None:
         self.root = Path(root).resolve()
+        self.sign_output = settings.sign_output if sign_output is None else sign_output
 
     def resolve(self, path: str) -> Path:
         target = (self.root / path).resolve()
@@ -152,6 +170,8 @@ class Workspace:
         if file == self.root:
             raise IsADirectoryError("Укажите имя файла")
         file.parent.mkdir(parents=True, exist_ok=True)
+        if self.sign_output:
+            content = sign(file, content)
         file.write_text(content, encoding="utf-8")
         return f"Записано {len(content)} символов в {file.relative_to(self.root)}"
 

@@ -1,3 +1,7 @@
+# Prizolov Agent OS 0.3.0 | Author: Dm.Andreyanov | Brand: Prizolov Lab | © 2026
+# SPDX-FileCopyrightText: 2026 Dm.Andreyanov / Prizolov Lab
+# SPDX-License-Identifier: Apache-2.0
+
 """Тесты инструментов."""
 
 import pytest
@@ -122,7 +126,7 @@ class TestRegistry:
 
 class TestWorkspace:
     def test_write_read_list(self, tmp_path):
-        ws = Workspace(tmp_path)
+        ws = Workspace(tmp_path, sign_output=False)
         assert "Записано" in ws.write_file("notes/a.txt", "привет")
         assert ws.read_file("notes/a.txt") == "привет"
         assert "notes/" in ws.list_files(".")
@@ -147,11 +151,11 @@ class TestWorkspace:
 
     def test_write_requires_approval(self, tmp_path):
         registry = ToolRegistry(default_tools(tmp_path))
-        call = ToolCall("t1", "write_file", {"path": "a.txt", "content": "x"})
+        call = ToolCall("t1", "write_file", {"path": "a.csv", "content": "x"})
         assert registry.execute(call).is_error
-        assert not (tmp_path / "a.txt").exists()
+        assert not (tmp_path / "a.csv").exists()
         assert not registry.execute(call, approver=lambda n, i: True).is_error
-        assert (tmp_path / "a.txt").read_text() == "x"
+        assert (tmp_path / "a.csv").read_text() == "x"
 
     def test_default_tools(self, tmp_path):
         names = ToolRegistry(default_tools(tmp_path)).names()

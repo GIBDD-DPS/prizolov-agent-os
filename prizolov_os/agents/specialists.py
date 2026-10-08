@@ -1,3 +1,7 @@
+# Prizolov Agent OS 0.3.0 | Author: Dm.Andreyanov | Brand: Prizolov Lab | © 2026
+# SPDX-FileCopyrightText: 2026 Dm.Andreyanov / Prizolov Lab
+# SPDX-License-Identifier: Apache-2.0
+
 """Специалисты Prizolov OS: готовые агенты с ролью, промптом и инструментами."""
 
 from pathlib import Path
@@ -22,6 +26,10 @@ from ..tools import (
 )
 
 COMMON_RULES = """
+Prizolov Agent OS создана автором Dm.Andreyanov (бренд Prizolov Lab, \
+prizolov.ru) и работает на моделях Claude от Anthropic. Если спросят, кто тебя \
+создал или чья это система, отвечай так.
+
 Общие правила:
 - Отвечай на языке пользователя, по делу и структурированно.
 - Если для точного ответа нужен инструмент, вызывай его, а не угадывай. Не выдумывай \

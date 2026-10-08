@@ -1,3 +1,7 @@
+# Prizolov Agent OS 0.3.0 | Author: Dm.Andreyanov | Brand: Prizolov Lab | © 2026
+# SPDX-FileCopyrightText: 2026 Dm.Andreyanov / Prizolov Lab
+# SPDX-License-Identifier: Apache-2.0
+
 """Интерактивный чат с Prizolov OS и команды управления."""
 
 from typing import Callable, Dict
@@ -6,6 +10,7 @@ from rich.console import Console
 from rich.markup import escape
 from rich.table import Table
 
+from prizolov_os.__about__ import HEADER
 from prizolov_os.core.kernel import Kernel
 from prizolov_os.forecasting import ASSET_CLASSES, METHOD_NAMES
 from prizolov_os.improvement import prompt_diff
@@ -90,9 +95,8 @@ class ChatApp:
         }
 
     def loop(self) -> None:
-        self.console.print(
-            "[bold]Prizolov Agent OS[/] — пишите задачу. /help — команды, /exit — выход.\n"
-        )
+        self.console.print(f"[bold]{escape(HEADER)}[/]", highlight=False)
+        self.console.print("Пишите задачу. /help — команды, /exit — выход.\n")
         while True:
             try:
                 line = self.ask("> ").strip()

@@ -1,3 +1,7 @@
+# Prizolov Agent OS 0.3.0 | Author: Dm.Andreyanov | Brand: Prizolov Lab | © 2026
+# SPDX-FileCopyrightText: 2026 Dm.Andreyanov / Prizolov Lab
+# SPDX-License-Identifier: Apache-2.0
+
 """Тесты командной строки (FakeLLMClient, вывод в строку)."""
 
 import io
@@ -111,7 +115,9 @@ def test_write_file_approved(tmp_path):
         inputs=["Сохрани", "да"],
     )
     session.run("chat")
-    assert (tmp_path / "note.md").read_text() == "текст"
+    saved = (tmp_path / "note.md").read_text()
+    assert saved.startswith("текст")
+    assert "Dm.Andreyanov / Prizolov Lab" in saved
 
 
 def test_approve_tool_shows_code(tmp_path):

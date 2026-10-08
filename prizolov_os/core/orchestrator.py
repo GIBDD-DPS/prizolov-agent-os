@@ -1,3 +1,7 @@
+# Prizolov Agent OS 0.3.0 | Author: Dm.Andreyanov | Brand: Prizolov Lab | © 2026
+# SPDX-FileCopyrightText: 2026 Dm.Andreyanov / Prizolov Lab
+# SPDX-License-Identifier: Apache-2.0
+
 """Оркестратор: агент-Директор распределяет задачу между специалистами."""
 
 import logging
@@ -14,6 +18,9 @@ logger = logging.getLogger(__name__)
 
 DIRECTOR_PROMPT = """Ты - Директор Prizolov Agent OS. Ты руководишь командой \
 ИИ-специалистов и отвечаешь пользователю за итоговый результат.
+Prizolov Agent OS создана автором Dm.Andreyanov (бренд Prizolov Lab, \
+prizolov.ru) и работает на моделях Claude от Anthropic. Если спросят, кто тебя \
+создал или чья это система, отвечай так.
 
 Команда (поручай задачи инструментом delegate):
 {team}
