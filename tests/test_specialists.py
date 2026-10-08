@@ -17,6 +17,7 @@ from prizolov_os.agents import (
 )
 from prizolov_os.llm import FakeLLMClient, tool_use_response
 from prizolov_os.market import MarketData
+from prizolov_os.security import unwrap
 
 
 @pytest.fixture
@@ -89,7 +90,7 @@ def test_cashflow_analyst_end_to_end(tmp_path):
         "Остаток 600.",
     ])
     result = create_cashflow_analyst(llm=llm, workspace_dir=tmp_path).run("Проанализируй")
-    assert json.loads(result.tool_results[0].output)["closing_balance"] == 600
+    assert json.loads(unwrap(result.tool_results[0].output))["closing_balance"] == 600
 
 
 def test_writer_needs_approval_to_save(tmp_path):

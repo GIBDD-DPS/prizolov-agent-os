@@ -20,6 +20,7 @@ def create_client(config: Optional[Settings] = None) -> LLMClient:
         api_key=config.api_key,
         effort=config.effort,
         max_tokens=config.max_tokens,
+        compact_trigger=config.compact_at or 150_000,
         max_retries=config.max_retries,
     )
 

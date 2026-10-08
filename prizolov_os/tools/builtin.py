@@ -184,12 +184,14 @@ def file_tools(workspace: Workspace) -> List[Tool]:
             description="Показывает файлы и папки в рабочей папке. Корень - '.'.",
             input_schema=make_schema({"path": path_param}),
             handler=workspace.list_files,
+            untrusted=True,
         ),
         Tool(
             name="read_file",
             description="Читает текстовый файл из рабочей папки.",
             input_schema=make_schema({"path": path_param}),
             handler=workspace.read_file,
+            untrusted=True,
         ),
         Tool(
             name="write_file",

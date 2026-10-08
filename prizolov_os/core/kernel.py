@@ -384,6 +384,7 @@ class Kernel:
             if record.name not in director.tools:
                 director.tools.add(build_tool(record))
 
+        director.compact_history = settings.compact_at > 0
         for name, agent in self.agents.items():
             active = self.store.active_prompt(name)
             if active:

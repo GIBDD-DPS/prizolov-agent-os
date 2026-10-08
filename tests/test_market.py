@@ -11,6 +11,7 @@ import pytest
 
 from prizolov_os.llm import ToolCall
 from prizolov_os.market import MarketData, MarketDataError
+from prizolov_os.security import unwrap
 from prizolov_os.tools import ToolRegistry, Workspace, cashflow_tool, market_tools
 
 TODAY = date(2026, 10, 7)
@@ -144,7 +145,7 @@ class TestFinanceTools:
             "source": "yahoo", "symbol": "GC=F", "history_days": 60, "horizon_days": 14,
         }))
         assert not result.is_error, result.output
-        payload = json.loads(result.output)
+        payload = json.loads(unwrap(result.output))
         assert payload["symbol"] == "GC=F"
         assert payload["forecast"]["horizon_days"] == 14
         assert "не инвестиционный совет" in payload["note"]
@@ -175,7 +176,7 @@ class TestFinanceTools:
             ToolCall("t1", "analyze_price_csv", {"path": "prices.csv", "horizon_days": 7})
         )
         assert not result.is_error, result.output
-        assert json.loads(result.output)["last_price"] == 125
+        assert json.loads(unwrap(result.output))["last_price"] == 125
 
     def test_cashflow_tool(self, tmp_path):
         (tmp_path / "bank.csv").write_text("дата;сумма\n01.09.2026;1000\n10.09.2026;-300\n")
@@ -184,4 +185,4 @@ class TestFinanceTools:
             "path": "bank.csv", "opening_balance": 500, "horizon_days": 30,
         }))
         assert not result.is_error, result.output
-        assert json.loads(result.output)["closing_balance"] == 1200
+        assert json.loads(unwrap(result.output))["closing_balance"] == 1200

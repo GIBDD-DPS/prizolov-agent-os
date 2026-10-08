@@ -12,6 +12,7 @@ from ..config import settings
 from ..forecasting import ForecastEngine
 from ..llm import LLMClient
 from ..market import MarketData
+from ..security import DATA_RULE
 from ..tools import (
     Approver,
     Workspace,
@@ -31,6 +32,7 @@ prizolov.ru) и работает на моделях Claude от Anthropic. Ес
 создал или чья это система, отвечай так.
 
 Общие правила:
+- """ + DATA_RULE + """
 - Отвечай на языке пользователя, по делу и структурированно.
 - Если для точного ответа нужен инструмент, вызывай его, а не угадывай. Не выдумывай \
 результаты инструментов, цифры и источники.

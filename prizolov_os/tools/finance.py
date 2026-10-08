@@ -56,6 +56,7 @@ def cashflow_tool(workspace: Workspace, engine: Optional[ForecastEngine] = None)
             "horizon_days": {"type": "integer", "description": "Горизонт прогноза в днях"},
         }),
         handler=handler,
+        untrusted=True,
     )
 
 
@@ -132,6 +133,7 @@ def market_tools(
                 "horizon_days": {"type": "integer", "description": "Горизонт прогноза в днях"},
             }),
             handler=analyze_price_csv,
+            untrusted=True,
         ),
     ]
 

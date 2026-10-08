@@ -359,7 +359,11 @@ class ChatApp:
                 f"Ваши оценки ({escape(agent_title(agent))}): "
                 f"хороших {marks['good']}, плохих {marks['bad']}."
             )
-        if not (tools or critic["checks"] or report["feedback"]):
+        for tool, count in report.get("injections", {}).items():
+            self.console.print(
+                f"[yellow]Подозрительный текст в данных ({escape(tool)}): {count} раз[/]"
+            )
+        if not (tools or critic["checks"] or report["feedback"] or report.get("injections")):
             self.console.print("Статистики пока нет.")
 
     def cmd_calibration_reset(self, arg: str) -> None:

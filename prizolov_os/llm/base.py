@@ -70,6 +70,11 @@ class LLMResponse:
         ]
 
     @property
+    def compacted(self) -> bool:
+        """В ответе есть сжатое содержание старой части диалога."""
+        return any(b.get("type") == "compaction" for b in self.content)
+
+    @property
     def refused(self) -> bool:
         """Модель отказалась отвечать по соображениям безопасности."""
         return self.stop_reason == "refusal"
@@ -86,10 +91,13 @@ class LLMClient(Protocol):
         tools: Optional[List[Dict[str, Any]]] = None,
         max_tokens: Optional[int] = None,
         output_schema: Optional[Dict[str, Any]] = None,
+        compact: bool = False,
     ) -> LLMResponse:
         """Отправляет диалог модели и возвращает её ответ.
 
         output_schema - JSON Schema: модель обязана ответить JSON по этой схеме
         (текст ответа - валидный JSON).
+        compact - разрешить сжатие длинной истории: когда она превысит порог, старая
+        часть заменяется кратким содержанием (блок compaction в ответе).
         """
         ...

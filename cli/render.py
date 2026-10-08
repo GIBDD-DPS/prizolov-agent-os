@@ -73,6 +73,14 @@ class ProgressPrinter:
             return f"[dim]  ⚙ {who}: {tool}({params}){where}[/]"
         if event.type == ev.TOOL_RESULT and data.get("is_error"):
             return f"[yellow]  ! {escape(data['tool'])}: {escape(short(data['output'], 120))}[/]"
+        if event.type == ev.INJECTION_WARNING:
+            snippet = (data.get("snippets") or [""])[0]
+            return (
+                f"[bold red]⚠ Подозрительный текст в данных ({escape(data['tool'])}): "
+                f"«{escape(short(snippet, 90))}» — агент не будет его выполнять[/]"
+            )
+        if event.type == ev.COMPACTION:
+            return "[dim]↻ История диалога сжата: старая часть заменена кратким содержанием[/]"
         if event.type == ev.SELF_CHECK:
             color = "green" if data["score"] >= 7 else "yellow"
             return f"[{color}]✓ Самопроверка: {data['score']}/10[/]"

@@ -41,5 +41,6 @@ def memory_tools(store: Store) -> List[Tool]:
             ),
             input_schema=make_schema({"query": {"type": "string"}}),
             handler=recall,
+            untrusted=True,
         ),
     ]
