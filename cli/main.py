@@ -85,6 +85,7 @@ def main(
         return run_once(kernel, console, " ".join(args.task))
 
     _verify_on_start(app)
+    _index_on_start(app)
     if getattr(args, "session", None):
         try:
             app.cmd_resume(args.session)
@@ -104,6 +105,16 @@ def _verify_on_start(app: ChatApp) -> None:
         return
     if report.verified:
         app.print_verification(report)
+
+
+def _index_on_start(app: ChatApp) -> None:
+    """Обновляет базу знаний по документам рабочей папки."""
+    if app.kernel.knowledge is None:
+        return
+    try:
+        app.print_index(app.kernel.knowledge.index())
+    except Exception as e:  # noqa: BLE001 - индексация не должна мешать запуску
+        logging.getLogger(__name__).error("Knowledge indexing failed: %s", e)
 
 
 def _has_credentials() -> bool:

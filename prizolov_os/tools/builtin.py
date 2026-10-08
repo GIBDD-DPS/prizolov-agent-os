@@ -14,6 +14,7 @@ from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from ..__about__ import SIGNATURE
 from ..config import settings
+from ..documents import TABLE_SUFFIXES, extract_text, is_document, sheet_as_csv
 from .base import ServerTool, Tool, make_schema
 
 MAX_READ_BYTES = 200_000
@@ -159,11 +160,22 @@ class Workspace:
         file = self.resolve(path)
         if not file.is_file():
             raise FileNotFoundError(f"Файл '{path}' не найден")
+        if is_document(file):
+            return extract_text(file)
         data = file.read_bytes()
         text = data[:MAX_READ_BYTES].decode("utf-8", errors="replace")
         if len(data) > MAX_READ_BYTES:
             text += f"\n\n[Показаны первые {MAX_READ_BYTES} байт из {len(data)}]"
         return text
+
+    def read_table(self, path: str) -> str:
+        """Таблица как CSV-текст: CSV читается как есть, Excel - первый лист."""
+        file = self.resolve(path)
+        if not file.is_file():
+            raise FileNotFoundError(f"Файл '{path}' не найден")
+        if file.suffix.lower() in TABLE_SUFFIXES:
+            return sheet_as_csv(file)
+        return self.read_file(path)
 
     def write_file(self, path: str, content: str) -> str:
         file = self.resolve(path)
@@ -184,12 +196,17 @@ def file_tools(workspace: Workspace) -> List[Tool]:
             description="Показывает файлы и папки в рабочей папке. Корень - '.'.",
             input_schema=make_schema({"path": path_param}),
             handler=workspace.list_files,
+            untrusted=True,
         ),
         Tool(
             name="read_file",
-            description="Читает текстовый файл из рабочей папки.",
+            description=(
+                "Читает файл из рабочей папки: текст, CSV, а также PDF, Word (.docx) и "
+                "Excel (.xlsx - все листы как таблицы)."
+            ),
             input_schema=make_schema({"path": path_param}),
             handler=workspace.read_file,
+            untrusted=True,
         ),
         Tool(
             name="write_file",

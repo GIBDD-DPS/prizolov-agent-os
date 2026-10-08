@@ -43,13 +43,15 @@ class ForecastEngine:
         dates: Sequence[date],
         closes: Sequence[float],
         horizon_days: int,
+        record: bool = True,
     ) -> Dict[str, Any]:
+        """record=False - только посчитать (например, для графика), не записывая в журнал."""
         klass, bucket = asset_class(source, symbol), horizon_bucket(horizon_days)
         span = max((dates[-1] - dates[0]).days, 1)
         steps = max(horizon_days * (len(closes) - 1) / span, 1.0)
 
         stats = backtest(closes, steps)
-        if self.journal:
+        if self.journal and record:
             self.journal.save_backtest(source, symbol, klass, bucket, stats)
         method = self._choose_method(stats, klass, bucket)
 
@@ -79,7 +81,7 @@ class ForecastEngine:
             "reliability": reliability,
             "method_competition": _competition(stats),
         }
-        if self.journal:
+        if self.journal and record:
             forecast["forecast_id"] = self.journal.record(
                 kind="market", source=source, symbol=symbol, asset_class=klass,
                 bucket=bucket, method=method, horizon_days=horizon_days,
@@ -140,13 +142,17 @@ class ForecastEngine:
     # --- Остаток денег -------------------------------------------------------
 
     def cashflow_forecast(
-        self, analysis: Dict[str, Any], transactions: Sequence[Transaction], path: str
+        self, analysis: Dict[str, Any], transactions: Sequence[Transaction], path: str,
+        record: bool = True,
     ) -> Dict[str, Any]:
-        """Калибрует прогноз остатка и записывает его; сверяет старые прогнозы."""
+        """Калибрует прогноз остатка и записывает его; сверяет старые прогнозы.
+
+        record=False - только откалибровать (для графика), без сверки и записи.
+        """
         forecast = analysis["forecast"]
         if not self.journal:
             return analysis
-        verified = self.journal.verify_cashflow(transactions)
+        verified = self.journal.verify_cashflow(transactions) if record else []
         live_z = self.journal.live_z("cashflow", horizon_bucket(forecast["horizon_days"]))
         calib = calibrate(live_z)
 
@@ -180,6 +186,8 @@ class ForecastEngine:
                  "error_pct": round(f.error_pct or 0, 1), "within_80": f.hit_80}
                 for f in verified
             ]
+        if not record:
+            return analysis
         end = transactions[-1].date
         forecast["forecast_id"] = self.journal.record(
             kind="cashflow", source="csv", symbol=path, asset_class="cashflow",

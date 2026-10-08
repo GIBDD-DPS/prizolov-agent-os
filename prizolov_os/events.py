@@ -25,6 +25,8 @@ DELEGATION_START = "delegation_start"  # Директор поручил зад�
 DELEGATION_END = "delegation_end"    # специалист закончил (specialist, status)
 SELF_CHECK = "self_check"            # самопроверка (score, issues)
 REVISION = "revision"                # доработка ответа по замечаниям
+INJECTION_WARNING = "injection_warning"  # подозрительный текст в данных (tool, snippets)
+COMPACTION = "compaction"            # история диалога сжата на сервере
 
 
 @dataclass

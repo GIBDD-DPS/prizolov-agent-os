@@ -156,11 +156,12 @@ class MeteredLLM:
         tools: Optional[List[Dict[str, Any]]] = None,
         max_tokens: Optional[int] = None,
         output_schema: Optional[Dict[str, Any]] = None,
+        compact: bool = False,
     ) -> LLMResponse:
         self.budget.check()
         response = self.inner.complete(
             system=system, messages=messages, tools=tools, max_tokens=max_tokens,
-            output_schema=output_schema,
+            output_schema=output_schema, compact=compact,
         )
         response.usage.cost_usd = cost(response.usage, response.model)
         self.budget.add(response.usage.cost_usd)

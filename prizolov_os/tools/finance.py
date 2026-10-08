@@ -6,6 +6,8 @@
 
 import csv
 import io
+import re
+from datetime import datetime
 from typing import Any, Dict, List, Optional
 
 from ..analytics import analyze_cashflow, analyze_series, parse_cashflow_csv
@@ -28,7 +30,7 @@ FORECAST_NOTE = (
 def cashflow_tool(workspace: Workspace, engine: Optional[ForecastEngine] = None) -> Tool:
     def handler(path: str, opening_balance: float, horizon_days: int) -> Dict[str, Any]:
         _check_horizon(horizon_days)
-        transactions = parse_cashflow_csv(workspace.read_file(path))
+        transactions = parse_cashflow_csv(workspace.read_table(path))
         result = analyze_cashflow(transactions, opening_balance, horizon_days)
         if engine:
             engine.cashflow_forecast(result, transactions, path)
@@ -41,14 +43,14 @@ def cashflow_tool(workspace: Workspace, engine: Optional[ForecastEngine] = None)
     return Tool(
         name="analyze_cashflow",
         description=(
-            "Анализирует выписку движения денег из CSV в рабочей папке и прогнозирует "
+            "Анализирует выписку движения денег (CSV или Excel) в рабочей папке и прогнозирует "
             "остаток. Колонки: дата, сумма (поступления +, расходы -), необязательно "
             "назначение/описание. Возвращает итоги, помесячные потоки, крупнейшие расходы, "
             "ожидаемый остаток через horizon_days с интервалами 80% и 95% и вероятность "
             "уйти в минус."
         ),
         input_schema=make_schema({
-            "path": {"type": "string", "description": "Путь к CSV в рабочей папке"},
+            "path": {"type": "string", "description": "Путь к CSV или Excel в рабочей папке"},
             "opening_balance": {
                 "type": "number",
                 "description": "Остаток на начало выписки; 0, если неизвестен",
@@ -56,6 +58,7 @@ def cashflow_tool(workspace: Workspace, engine: Optional[ForecastEngine] = None)
             "horizon_days": {"type": "integer", "description": "Горизонт прогноза в днях"},
         }),
         handler=handler,
+        untrusted=True,
     )
 
 
@@ -84,7 +87,7 @@ def market_tools(
 
     def analyze_price_csv(path: str, horizon_days: int) -> Dict[str, Any]:
         _check_horizon(horizon_days)
-        dates, closes = _parse_price_csv(workspace.read_file(path))
+        dates, closes = _parse_price_csv(workspace.read_table(path))
         result = analyze_series(dates, closes, horizon_days)
         result["forecast"] = engine.market_forecast("csv", path, dates, closes, horizon_days)
         return {**result, "note": FORECAST_NOTE}
@@ -125,13 +128,14 @@ def market_tools(
             name="analyze_price_csv",
             description=(
                 "То же, что analyze_market, но для истории цен из CSV в рабочей папке. "
-                "Колонки: дата и цена закрытия (close/цена/курс)."
+                "Файл CSV или Excel; колонки: дата и цена закрытия (close/цена/курс)."
             ),
             input_schema=make_schema({
                 "path": {"type": "string", "description": "Путь к CSV в рабочей папке"},
                 "horizon_days": {"type": "integer", "description": "Горизонт прогноза в днях"},
             }),
             handler=analyze_price_csv,
+            untrusted=True,
         ),
     ]
 
@@ -166,3 +170,85 @@ def _parse_price_csv(text: str):
             raise ValueError(f"Строка {line_no}: {e}") from None
     ordered = sorted(pairs.items())
     return [d for d, _ in ordered], [p for _, p in ordered]
+
+
+def chart_tools(
+    market: MarketData, workspace: Workspace, engine: Optional[ForecastEngine] = None
+) -> List[Tool]:
+    """Инструменты, которые рисуют графики PNG в папку charts/ рабочей папки."""
+    from .. import charts
+
+    engine = engine or ForecastEngine()
+
+    def target(name: str) -> Any:
+        stamp = datetime.now().strftime("%Y%m%d-%H%M%S")
+        slug = re.sub(r"[^\w-]+", "_", name, flags=re.UNICODE).strip("_")[:40] or "chart"
+        return workspace.resolve(f"charts/{slug}-{stamp}.png")
+
+    def relative(path: Any) -> str:
+        return str(path.relative_to(workspace.root))
+
+    def chart_market(
+        source: str, symbol: str, history_days: int, horizon_days: int
+    ) -> Dict[str, Any]:
+        _check_horizon(horizon_days)
+        if source == "file":
+            dates, closes = _parse_price_csv(workspace.read_table(symbol))
+            currency, unit, title = "", "", f"Цена: {symbol}"
+        else:
+            series = market.history(source, symbol, history_days)
+            dates, closes = series.dates, series.closes
+            currency, unit = series.currency, series.unit
+            title = f"{series.symbol} ({source}){', ' + currency if currency else ''}"
+        forecast = engine.market_forecast(
+            "csv" if source == "file" else source, symbol, dates, closes, horizon_days,
+            record=False,
+        )
+        path = charts.price_forecast_chart(target(f"{symbol}"), title, dates, closes, forecast,
+                                           unit)
+        return {"chart": relative(path), "last_price": closes[-1], "forecast_median":
+                forecast["median"], "note": "График сохранён; покажите пользователю путь к файлу."}
+
+    def chart_cashflow(path: str, opening_balance: float, horizon_days: int) -> Dict[str, Any]:
+        _check_horizon(horizon_days)
+        transactions = parse_cashflow_csv(workspace.read_table(path))
+        analysis = analyze_cashflow(transactions, opening_balance, horizon_days)
+        engine.cashflow_forecast(analysis, transactions, path, record=False)
+        balance = charts.cashflow_forecast_chart(
+            target("balance"), transactions, opening_balance, analysis["forecast"]
+        )
+        monthly = charts.monthly_flows_chart(target("monthly"), analysis["monthly"])
+        return {"charts": [relative(balance), relative(monthly)],
+                "note": "Графики сохранены; покажите пользователю пути к файлам."}
+
+    return [
+        Tool(
+            name="chart_market",
+            description=(
+                "Рисует график PNG: история цены и прогноз с интервалами 80% и 95% "
+                "(тем же методом и с той же калибровкой, что analyze_market). source: "
+                "yahoo, moex, cbr - как в analyze_market; file - symbol это путь к CSV или "
+                "Excel с ценами в рабочей папке. Сохраняет в charts/."
+            ),
+            input_schema=make_schema({
+                "source": {"type": "string", "enum": [*SOURCES, "file"]},
+                "symbol": {"type": "string", "description": "Тикер, код или путь к файлу"},
+                "history_days": {"type": "integer", "description": "Дней истории на графике"},
+                "horizon_days": {"type": "integer", "description": "Горизонт прогноза в днях"},
+            }),
+            handler=chart_market,
+        ),
+        Tool(
+            name="chart_cashflow",
+            description=(
+                "Рисует два графика PNG по выписке (CSV или Excel): остаток денег по дням с "
+                "прогнозом и линией нуля, и поступления/расходы по месяцам. Сохраняет в charts/."
+            ),
+            input_schema=make_schema({
+                "path": {"type": "string", "description": "Путь к выписке в рабочей папке"},
+                "opening_balance": {"type": "number", "description": "Остаток на начало"},
+                "horizon_days": {"type": "integer", "description": "Горизонт прогноза в днях"},
+            }),
+            handler=chart_cashflow,
+        ),
+    ]

@@ -6,10 +6,11 @@
 
 import json
 import logging
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Any, Callable, Dict, Iterable, List, Optional, Union
 
 from ..llm import ToolCall
+from ..security import scan, wrap_untrusted
 
 logger = logging.getLogger(__name__)
 
@@ -31,6 +32,8 @@ class Tool:
         input_schema: JSON Schema параметров (type: object).
         handler: Функция, которая получает параметры как именованные аргументы.
         requires_approval: Перед вызовом спросить разрешение у человека.
+        untrusted: Результат содержит внешние данные (файлы, выписки): он
+            оборачивается в <untrusted_data> и проверяется на prompt-injection.
     """
 
     name: str
@@ -38,6 +41,7 @@ class Tool:
     input_schema: Dict[str, Any]
     handler: Callable[..., Any]
     requires_approval: bool = False
+    untrusted: bool = False
 
     def to_api(self) -> Dict[str, Any]:
         """Описание инструмента в формате Messages API."""
@@ -76,6 +80,7 @@ class ToolResult:
     input: Dict[str, Any]
     output: str
     is_error: bool = False
+    suspicious: List[str] = field(default_factory=list)
 
     def to_api(self) -> Dict[str, Any]:
         """Блок tool_result для следующего сообщения модели."""
@@ -187,4 +192,14 @@ class ToolRegistry:
             return error(str(e) or type(e).__name__)
         if not isinstance(output, str):
             output = json.dumps(output, ensure_ascii=False, default=str)
-        return ToolResult(call.id, call.name, call.input, output)
+        findings = scan(output)
+        if tool.untrusted:
+            source = call.name + (f":{call.input['path']}" if "path" in call.input else "")
+            output = wrap_untrusted(output, source, findings)
+        elif findings:
+            output = wrap_untrusted(output, call.name, findings)
+        if findings:
+            logger.warning("Possible prompt injection in %s output", call.name)
+        return ToolResult(
+            call.id, call.name, call.input, output, suspicious=[f.snippet for f in findings]
+        )

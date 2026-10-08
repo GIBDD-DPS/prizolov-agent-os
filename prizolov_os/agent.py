@@ -11,6 +11,7 @@ from typing import Any, Callable, Dict, Iterable, List, Optional, Tuple, Union
 from . import events as ev
 from .events import EventBus
 from .llm import LLMClient, LLMResponse, Usage, create_client
+from .security import DATA_RULE
 from .tools import AnyTool, Approver, ToolRegistry, ToolResult
 
 logger = logging.getLogger(__name__)
@@ -23,7 +24,9 @@ prizolov.ru) и работает на моделях Claude от Anthropic. Ес
 Отвечай на языке пользователя. Если для точного ответа нужен инструмент \
 (расчёт, дата, файл), вызови его, а не угадывай. Не выдумывай результаты \
 инструментов. Если инструмент вернул ошибку, учти её: исправь параметры \
-или объясни пользователю, что не получилось."""
+или объясни пользователю, что не получилось.
+
+""" + DATA_RULE
 
 
 @dataclass
@@ -99,6 +102,8 @@ class Agent:
         self.max_iterations = max_iterations
         self.context_provider = context_provider
         self.events: Optional[EventBus] = None
+        # Разрешить серверное сжатие длинной истории (включается для Директора).
+        self.compact_history = False
         self.history: List[Dict[str, Any]] = []
         self.memory: List[Tuple[str, str]] = []
         self._llm = llm
@@ -196,7 +201,10 @@ class Agent:
 
         for iteration in range(1, self.max_iterations + 1):
             self._emit(ev.LLM_REQUEST, iteration=iteration)
-            response = self.llm.complete(system=self.system_prompt, messages=messages, tools=tools)
+            response = self.llm.complete(
+                system=self.system_prompt, messages=messages, tools=tools,
+                compact=self.compact_history,
+            )
             add_usage(usage, response.usage)
             self._emit(
                 ev.LLM_RESPONSE,
@@ -204,6 +212,8 @@ class Agent:
                 model=response.model,
                 usage=response.usage,
             )
+            if response.compacted:
+                self._emit(ev.COMPACTION)
             for block in response.content:
                 if block.get("type") == "server_tool_use":
                     self._emit(
@@ -248,6 +258,8 @@ class Agent:
                     ev.TOOL_RESULT, tool=call.name, input=call.input,
                     is_error=result.is_error, output=result.output[:500],
                 )
+                if result.suspicious:
+                    self._emit(ev.INJECTION_WARNING, tool=call.name, snippets=result.suspicious)
                 results.append(result)
             tool_results.extend(results)
             # Все результаты - одним сообщением, как требует API.

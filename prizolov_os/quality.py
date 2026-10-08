@@ -66,6 +66,8 @@ class QualityMonitor:
             self.record("tool", event.agent, key, ok)
             if not ok:
                 self._maybe_alert(event.agent, key)
+        elif event.type == ev.INJECTION_WARNING:
+            self.record("injection", event.agent, event.data["tool"], False)
         elif event.type == ev.SELF_CHECK:
             score = event.data["score"]
             self.record("critic", "director", "score", score >= 7, float(score))
@@ -95,6 +97,10 @@ class QualityMonitor:
             "SELECT COUNT(*) AS n, AVG(value) AS avg, SUM(1 - ok) AS low FROM quality_events "
             "WHERE kind = 'critic' AND created_at > ?", (since,),
         )[0]
+        injections = self.store.query(
+            "SELECT key, COUNT(*) AS n FROM quality_events WHERE kind = 'injection' "
+            "AND created_at > ? GROUP BY key ORDER BY n DESC", (since,),
+        )
         feedback = self.store.query(
             "SELECT agent, SUM(ok) AS good, SUM(1 - ok) AS bad FROM quality_events "
             "WHERE kind = 'feedback' AND created_at > ? GROUP BY agent", (since,),
@@ -108,6 +114,7 @@ class QualityMonitor:
                 "revisions": critic["low"] or 0,
             },
             "feedback": {r["agent"]: {"good": r["good"], "bad": r["bad"]} for r in feedback},
+            "injections": {r["key"]: r["n"] for r in injections},
         }
 
     def _maybe_alert(self, agent: str, key: str) -> None:

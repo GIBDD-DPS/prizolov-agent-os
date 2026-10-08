@@ -10,16 +10,20 @@ from typing import Dict, Optional, Union
 from ..agent import Agent
 from ..config import settings
 from ..forecasting import ForecastEngine
+from ..knowledge import KnowledgeBase
 from ..llm import LLMClient
 from ..market import MarketData
+from ..security import DATA_RULE
 from ..tools import (
     Approver,
     Workspace,
     calculator_tool,
     cashflow_tool,
+    chart_tools,
     datetime_tool,
     default_tools,
     file_tools,
+    knowledge_tool,
     market_tools,
     web_fetch_tool,
     web_search_tool,
@@ -31,6 +35,7 @@ prizolov.ru) и работает на моделях Claude от Anthropic. Ес
 создал или чья это система, отвечай так.
 
 Общие правила:
+- """ + DATA_RULE + """
 - Отвечай на языке пользователя, по делу и структурированно.
 - Если для точного ответа нужен инструмент, вызывай его, а не угадывай. Не выдумывай \
 результаты инструментов, цифры и источники.
@@ -47,8 +52,9 @@ RESEARCHER_PROMPT = """Ты - исследователь Prizolov Agent OS.
 
 Твоя задача - собрать проверенный фактический материал по теме:
 1. Уточни для себя, что именно нужно найти.
-2. Ищи в интернете (web_search), открывай ключевые страницы (web_fetch), при \
-необходимости читай документы пользователя из рабочей папки.
+2. Если вопрос может касаться документов пользователя, сначала ищи в его базе \
+знаний (search_knowledge). Затем ищи в интернете (web_search) и открывай ключевые \
+страницы (web_fetch).
 3. Сверяй факты по нескольким источникам; отмечай противоречия и устаревшие данные.
 4. Верни структурированную сводку: ключевые факты, цифры с датами, выводы и список \
 источников со ссылками. Явно отделяй факты от своих оценок.
@@ -59,8 +65,8 @@ WRITER_PROMPT = """Ты - писатель Prizolov Agent OS.
 
 Пишешь тексты по материалу, который тебе дали: статьи, отчёты, посты, письма, \
 описания, коммерческие предложения.
-- Опирайся только на переданный материал и файлы из рабочей папки; новые факты \
-не придумывай. Если материала мало, скажи, чего не хватает.
+- Опирайся только на переданный материал, файлы из рабочей папки и базу знаний \
+(search_knowledge); новые факты не придумывай. Если материала мало, скажи, чего не хватает.
 - Подстраивай стиль и объём под задачу и аудиторию; по умолчанию пиши ясно, \
 живо и без канцелярита.
 - Если просят сохранить результат, запиши его в файл (пользователь подтвердит \
@@ -76,6 +82,8 @@ CASHFLOW_PROMPT = """Ты - финансовый аналитик Prizolov Agent
 разрыва.
 - Предлагай конкретные действия: что сократить, какие платежи перенести, какой \
 резерв держать.
+- Если пользователь хочет наглядности или отчёт, нарисуй графики (chart_cashflow) и \
+назови пути к файлам.
 - Прогноз - статистическая оценка по истории, а не гарантия; говори об этом.
 - Сообщай надёжность из forecast.reliability. Если в ответе есть forecast.verified_now, \
 расскажи, насколько сбылись прошлые прогнозы.""" + COMMON_RULES
@@ -85,6 +93,8 @@ MARKET_PROMPT = """Ты - рыночный аналитик Prizolov Agent OS: �
 
 - Получай данные только инструментами: analyze_market (Yahoo Finance, Московская \
 биржа, ЦБ РФ) или analyze_price_csv для файлов пользователя. Не называй цены по памяти.
+- Если пользователь просит график или отчёт, нарисуй его (chart_market) и назови путь \
+к файлу.
 - Выбирай подходящий источник: российские акции - moex, официальный курс рубля и \
 учётные цены металлов ЦБ - cbr, остальное - yahoo.
 - В ответе: текущая цена и дата данных, динамика, ключевые индикаторы (тренд по \
@@ -121,6 +131,7 @@ def create_researcher(
     workspace_dir: Optional[Union[str, Path]] = None,
     approver: Optional[Approver] = None,
     web_max_uses: int = 5,
+    knowledge: Optional[KnowledgeBase] = None,
 ) -> Agent:
     workspace = Workspace(_workspace_dir(workspace_dir))
     read_only = [t for t in file_tools(workspace) if t.name in ("list_files", "read_file")]
@@ -136,6 +147,7 @@ def create_researcher(
             web_search_tool(web_max_uses),
             web_fetch_tool(web_max_uses),
             *read_only,
+            *([knowledge_tool(knowledge)] if knowledge else []),
             datetime_tool(),
         ],
         llm=llm,
@@ -147,6 +159,7 @@ def create_writer(
     llm: Optional[LLMClient] = None,
     workspace_dir: Optional[Union[str, Path]] = None,
     approver: Optional[Approver] = None,
+    knowledge: Optional[KnowledgeBase] = None,
 ) -> Agent:
     return Agent(
         role="писатель",
@@ -156,7 +169,10 @@ def create_writer(
             "может сохранить результат в файл."
         ),
         system_prompt=WRITER_PROMPT,
-        tools=file_tools(Workspace(_workspace_dir(workspace_dir))),
+        tools=[
+            *file_tools(Workspace(_workspace_dir(workspace_dir))),
+            *([knowledge_tool(knowledge)] if knowledge else []),
+        ],
         llm=llm,
         approver=approver,
     )
@@ -178,7 +194,14 @@ def create_cashflow_analyst(
             "и риск кассового разрыва."
         ),
         system_prompt=CASHFLOW_PROMPT,
-        tools=[cashflow_tool(workspace, forecasts), calculator_tool(), datetime_tool(), *read_only],
+        tools=[
+            cashflow_tool(workspace, forecasts),
+            *[t for t in chart_tools(MarketData(), workspace, forecasts)
+              if t.name == "chart_cashflow"],
+            calculator_tool(),
+            datetime_tool(),
+            *read_only,
+        ],
         llm=llm,
         approver=approver,
     )
@@ -203,6 +226,8 @@ def create_market_analyst(
         system_prompt=MARKET_PROMPT,
         tools=[
             *market_tools(market or MarketData(), workspace, forecasts),
+            *[t for t in chart_tools(market or MarketData(), workspace, forecasts)
+              if t.name == "chart_market"],
             calculator_tool(),
             datetime_tool(),
             *read_only,
@@ -218,13 +243,14 @@ def create_specialists(
     approver: Optional[Approver] = None,
     market: Optional[MarketData] = None,
     forecasts: Optional[ForecastEngine] = None,
+    knowledge: Optional[KnowledgeBase] = None,
 ) -> Dict[str, Agent]:
     """Все специалисты по именам: assistant, researcher, writer, cashflow_analyst,
     market_analyst."""
     agents = [
         create_assistant(llm, workspace_dir, approver),
-        create_researcher(llm, workspace_dir, approver),
-        create_writer(llm, workspace_dir, approver),
+        create_researcher(llm, workspace_dir, approver, knowledge=knowledge),
+        create_writer(llm, workspace_dir, approver, knowledge=knowledge),
         create_cashflow_analyst(llm, workspace_dir, approver, forecasts),
         create_market_analyst(llm, workspace_dir, approver, market, forecasts),
     ]

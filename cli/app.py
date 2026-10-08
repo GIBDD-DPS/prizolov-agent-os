@@ -35,6 +35,7 @@ HELP = """\
   /resume ID              продолжить диалог
   /status                 состояние системы
   /log                    поручения специалистам в последнем ответе
+  /index [full]           обновить базу знаний по документам рабочей папки
   /cost                   расходы: последняя задача, сегодня, всего
   /budget [task|day N]    лимиты расходов (на эту сессию)
 [bold]Обучение[/]
@@ -77,6 +78,7 @@ class ChatApp:
             "/sessions": self.cmd_sessions,
             "/resume": self.cmd_resume,
             "/status": self.cmd_status,
+            "/index": self.cmd_index,
             "/cost": self.cmd_cost,
             "/budget": self.cmd_budget,
             "/log": self.cmd_log,
@@ -211,6 +213,34 @@ class ChatApp:
         if self.kernel.budget is None:
             raise ValueError("Учёт расходов не подключён")
         return self.kernel.budget
+
+    def cmd_index(self, arg: str) -> None:
+        knowledge = self.kernel.knowledge
+        if knowledge is None:
+            raise ValueError("База знаний не подключена")
+        report = knowledge.index(force=arg == "full")
+        self.print_index(report, quiet=False)
+        stats = knowledge.stats()
+        self.console.print(
+            f"База знаний: файлов {stats['files']}, фрагментов {stats['chunks']}"
+            + (f", не прочитано {stats['errors']}" if stats["errors"] else "")
+            + f". Папка: {escape(str(knowledge.root))}"
+        )
+
+    def print_index(self, report, quiet: bool = True) -> None:
+        if report.changed:
+            parts = []
+            if report.added:
+                parts.append(f"новых {len(report.added)}")
+            if report.updated:
+                parts.append(f"изменённых {len(report.updated)}")
+            if report.removed:
+                parts.append(f"удалённых {len(report.removed)}")
+            self.console.print(f"[cyan]База знаний обновлена: {', '.join(parts)} файлов[/]")
+        elif not quiet:
+            self.console.print("Изменений в документах нет.")
+        for path, error in report.errors:
+            self.console.print(f"[yellow]Не прочитан {escape(path)}: {escape(error)}[/]")
 
     def cmd_status(self, _: str) -> None:
         for key, value in self.kernel.get_status().items():
@@ -359,7 +389,11 @@ class ChatApp:
                 f"Ваши оценки ({escape(agent_title(agent))}): "
                 f"хороших {marks['good']}, плохих {marks['bad']}."
             )
-        if not (tools or critic["checks"] or report["feedback"]):
+        for tool, count in report.get("injections", {}).items():
+            self.console.print(
+                f"[yellow]Подозрительный текст в данных ({escape(tool)}): {count} раз[/]"
+            )
+        if not (tools or critic["checks"] or report["feedback"] or report.get("injections")):
             self.console.print("Статистики пока нет.")
 
     def cmd_calibration_reset(self, arg: str) -> None:

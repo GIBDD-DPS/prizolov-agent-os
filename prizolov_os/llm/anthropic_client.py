@@ -16,6 +16,9 @@ logger = logging.getLogger(__name__)
 # Если классификатор безопасности отклонит запрос, API сам повторит его
 # на модели, которую Anthropic рекомендует для этой категории отказа.
 FALLBACK_BETA = "server-side-fallback-2026-07-01"
+# Сжатие длинной истории на сервере.
+COMPACTION_BETA = "compact-2026-01-12"
+MIN_COMPACT_TRIGGER = 50_000
 
 
 class AnthropicClient:
@@ -29,8 +32,11 @@ class AnthropicClient:
         max_tokens: int = 16000,
         max_retries: int = 2,
         client: Optional[Any] = None,
+        compact_trigger: int = 150_000,
     ) -> None:
         self.model = model
+        # Порог сжатия в токенах; API не принимает меньше 50 000.
+        self.compact_trigger = max(compact_trigger, MIN_COMPACT_TRIGGER)
         self.effort = effort
         self.max_tokens = max_tokens
         # Без api_key SDK сам найдёт ANTHROPIC_API_KEY или профиль `ant auth login`.
@@ -46,6 +52,7 @@ class AnthropicClient:
         tools: Optional[List[Dict[str, Any]]] = None,
         max_tokens: Optional[int] = None,
         output_schema: Optional[Dict[str, Any]] = None,
+        compact: bool = False,
     ) -> LLMResponse:
         params: Dict[str, Any] = {
             "model": self.model,
@@ -60,6 +67,12 @@ class AnthropicClient:
         }
         if tools:
             params["tools"] = tools
+        if compact:
+            params["betas"] = [FALLBACK_BETA, COMPACTION_BETA]
+            params["context_management"] = {"edits": [{
+                "type": "compact_20260112",
+                "trigger": {"type": "input_tokens", "value": self.compact_trigger},
+            }]}
         if output_schema:
             params["output_config"] = {
                 "effort": self.effort,
@@ -90,7 +103,6 @@ class AnthropicClient:
             details = getattr(response, "stop_details", None)
             logger.warning("Model refused: category=%s", getattr(details, "category", None))
 
-        usage = response.usage
         return LLMResponse(
             content=[
                 block.model_dump(mode="json", by_alias=True, exclude_none=True)
@@ -100,13 +112,25 @@ class AnthropicClient:
             ],
             stop_reason=response.stop_reason or "",
             model=response.model,
-            usage=Usage(
-                input_tokens=usage.input_tokens or 0,
-                output_tokens=usage.output_tokens or 0,
-                cache_read_input_tokens=usage.cache_read_input_tokens or 0,
-                cache_creation_input_tokens=usage.cache_creation_input_tokens or 0,
-                web_search_requests=getattr(
-                    getattr(usage, "server_tool_use", None), "web_search_requests", 0
-                ) or 0,
-            ),
+            usage=_usage(response.usage),
         )
+
+
+def _usage(usage: Any) -> Usage:
+    """Расход токенов. Если запрос шёл в несколько шагов (сжатие истории, запасная
+    модель), верхние цифры относятся только к последнему шагу, а полный расход -
+    сумма по usage.iterations."""
+    parts = getattr(usage, "iterations", None) or [usage]
+
+    def total(field: str) -> int:
+        return sum(getattr(part, field, 0) or 0 for part in parts)
+
+    return Usage(
+        input_tokens=total("input_tokens"),
+        output_tokens=total("output_tokens"),
+        cache_read_input_tokens=total("cache_read_input_tokens"),
+        cache_creation_input_tokens=total("cache_creation_input_tokens"),
+        web_search_requests=getattr(
+            getattr(usage, "server_tool_use", None), "web_search_requests", 0
+        ) or 0,
+    )
