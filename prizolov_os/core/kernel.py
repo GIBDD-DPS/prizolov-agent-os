@@ -2,6 +2,8 @@
 
 import logging
 import uuid
+from dataclasses import dataclass, field
+from datetime import date, timedelta
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple, Union
 
@@ -10,6 +12,9 @@ from ..agent import Agent, AgentResult, add_usage
 from ..agents import create_specialists
 from ..config import settings
 from ..events import EventBus
+from ..forecasting import ASSET_CLASSES, Forecast, ForecastEngine, ForecastJournal
+from ..forecasting.calibration import MIN_SAMPLES
+from ..forecasting.journal import GIVE_UP_DAYS
 from ..improvement import (
     Critic,
     LessonExtractor,
@@ -22,8 +27,9 @@ from ..improvement import (
     revision_request,
 )
 from ..llm import LLMClient, create_client
-from ..market import MarketData
+from ..market import MarketData, MarketDataError
 from ..memory import APPROVED, PENDING, REJECTED, CustomToolRecord, Lesson, PromptVersion, Store
+from ..quality import QualityMonitor
 from ..tools import Approver, memory_tools
 from .orchestrator import Orchestrator
 
@@ -32,6 +38,19 @@ logger = logging.getLogger(__name__)
 SELF_CHECK_MODES = ("complex", "always", "off")
 # Сколько новых уроков должно накопиться, чтобы предложить улучшить промпт.
 PROMPT_IMPROVEMENT_THRESHOLD = 5
+# Если в 80%-й интервал попадает меньше этой доли сверенных прогнозов, аналитик получает урок.
+LOW_PASS_RATE = 0.6
+# Факт ищем не дальше стольких дней до даты прогноза (выходные, праздники).
+FACT_LOOKBACK_DAYS = 7
+
+
+@dataclass
+class VerificationReport:
+    """Итог сверки прогнозов с фактом."""
+
+    verified: List[Forecast] = field(default_factory=list)
+    unverifiable: int = 0
+    errors: List[str] = field(default_factory=list)
 
 
 class Kernel:
@@ -51,6 +70,7 @@ class Kernel:
         llm: Optional[LLMClient] = None,
         self_check: str = "off",
         session_id: Optional[str] = None,
+        market: Optional[MarketData] = None,
     ) -> None:
         if self_check not in SELF_CHECK_MODES:
             raise ValueError(f"self_check должен быть одним из {SELF_CHECK_MODES}")
@@ -62,6 +82,9 @@ class Kernel:
         self.last_review: Optional[Review] = None
         self.events = EventBus()
         self.orchestrator.events = self.events
+        self.market = market or MarketData()
+        self.forecasts = ForecastJournal(self.store)
+        self.quality = QualityMonitor(self.store, self.events)
         self._llm = llm
         self._last: Optional[Tuple[str, str]] = None
         # Исходные промпты из кода: к ним возвращает откат версий.
@@ -82,13 +105,17 @@ class Kernel:
         session_id: Optional[str] = None,
     ) -> "Kernel":
         """Собирает ядро со всеми специалистами по настройкам."""
-        specialists = create_specialists(llm, workspace_dir, approver, market)
+        store = store or Store(settings.db_path)
+        market = market or MarketData()
+        engine = ForecastEngine(ForecastJournal(store))
+        specialists = create_specialists(llm, workspace_dir, approver, market, engine)
         return cls(
             Orchestrator(specialists, llm=llm, approver=approver),
-            store=store or Store(settings.db_path),
+            store=store,
             llm=llm,
             self_check=self_check or settings.self_check,
             session_id=session_id,
+            market=market,
         )
 
     @property
@@ -146,6 +173,7 @@ class Kernel:
             "facts": len(self.store.list_facts()),
             "lessons": len(self.store.list_lessons()),
             "pending_tools": len(self.store.list_custom_tools(PENDING)),
+            "forecasts": self.forecasts.counts(),
         }
 
     # --- Самопроверка и уроки ------------------------------------------------
@@ -191,6 +219,7 @@ class Kernel:
         if self._last is None:
             raise ValueError("Ещё нет ответа, который можно оценить")
         if positive and not comment.strip():
+            self.quality.record_feedback("director", True)
             return None
         task, answer = self._last
         extracted = LessonExtractor(self.llm).from_feedback(
@@ -198,9 +227,65 @@ class Kernel:
         )
         if extracted is None:
             return None
+        self.quality.record_feedback(extracted.agent, positive)
         source = "feedback+" if positive else "feedback-"
         lesson_id = self.store.add_lesson(extracted.agent, extracted.text, source)
         return next(item for item in self.store.list_lessons() if item.id == lesson_id)
+
+    # --- Сверка прогнозов ----------------------------------------------------
+
+    def verify_forecasts(self, today: Optional[date] = None) -> VerificationReport:
+        """Сверяет наступившие рыночные прогнозы с фактическими ценами."""
+        today = today or date.today()
+        report = VerificationReport()
+        due = [f for f in self.forecasts.due(today) if f.kind == "market"]
+        by_asset: Dict[Tuple[str, str], List[Forecast]] = {}
+        for forecast in due:
+            if forecast.source == "csv":
+                # Цены из файла пользователя сверить автоматически нельзя.
+                if (today - forecast.target_date).days > GIVE_UP_DAYS:
+                    self.forecasts.mark_unverifiable(forecast.id)
+                    report.unverifiable += 1
+                continue
+            by_asset.setdefault((forecast.source, forecast.symbol), []).append(forecast)
+
+        for (source, symbol), forecasts in by_asset.items():
+            oldest = min(f.target_date for f in forecasts)
+            days = max((today - oldest).days + FACT_LOOKBACK_DAYS + 3, 10)
+            try:
+                series = self.market.history(source, symbol, days)
+            except MarketDataError as e:
+                report.errors.append(f"{symbol} ({source}): {e}")
+                continue
+            prices = dict(zip(series.dates, series.closes))
+            for forecast in forecasts:
+                actual = _price_on(prices, forecast.target_date)
+                if actual is not None:
+                    report.verified.append(self.forecasts.mark_verified(forecast, actual))
+                elif (today - forecast.target_date).days > GIVE_UP_DAYS:
+                    self.forecasts.mark_unverifiable(forecast.id)
+                    report.unverifiable += 1
+        self._accuracy_lessons({(f.asset_class, f.bucket) for f in report.verified})
+        return report
+
+    def _accuracy_lessons(self, groups: Any) -> None:
+        """Урок аналитику, если прогнозы по классу активов часто не сбываются."""
+        for asset_class, bucket in groups:
+            accuracy = self.forecasts.live_accuracy(asset_class, bucket)
+            if accuracy.n < MIN_SAMPLES or (accuracy.pass_rate_80 or 0) >= LOW_PASS_RATE:
+                continue
+            name = ASSET_CLASSES.get(asset_class, asset_class)
+            marker = f"Прогнозы ({name}, горизонт {bucket})"
+            if any(lesson.text.startswith(marker) for lesson in
+                   self.store.list_lessons("market_analyst")):
+                continue
+            self.store.add_lesson(
+                "market_analyst",
+                f"{marker} часто не сбываются: в 80%-й интервал попало только "
+                f"{accuracy.pass_rate_80 * 100:.0f}% из {accuracy.n}. Подчёркивай высокую "
+                "неопределённость и не делай уверенных выводов по таким прогнозам.",
+                "forecast_accuracy",
+            )
 
     # --- Версии промптов -----------------------------------------------------
 
@@ -286,6 +371,15 @@ class Kernel:
         if agent is None:
             raise ValueError(f"Нет агента '{name}'. Доступны: {', '.join(self.agents)}")
         return agent
+
+
+def _price_on(prices: Dict[date, float], target: date) -> Optional[float]:
+    """Цена на дату или ближайшую предыдущую (не раньше чем за неделю)."""
+    for offset in range(FACT_LOOKBACK_DAYS + 1):
+        day = target - timedelta(days=offset)
+        if day in prices:
+            return prices[day]
+    return None
 
 
 def _new_session_id() -> str:

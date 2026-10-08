@@ -78,6 +78,7 @@ def main(
     if args.command == "run":
         return run_once(kernel, console, " ".join(args.task))
 
+    _verify_on_start(app)
     if getattr(args, "session", None):
         try:
             app.cmd_resume(args.session)
@@ -86,6 +87,17 @@ def main(
             return 1
     app.loop()
     return 0
+
+
+def _verify_on_start(app: ChatApp) -> None:
+    """Сверяет наступившие прогнозы при запуске чата, чтобы система училась на фактах."""
+    try:
+        report = app.kernel.verify_forecasts()
+    except Exception as e:  # noqa: BLE001 - сверка не должна мешать запуску
+        logging.getLogger(__name__).error("Forecast verification failed: %s", e)
+        return
+    if report.verified:
+        app.print_verification(report)
 
 
 def _has_credentials() -> bool:

@@ -5,6 +5,7 @@ from typing import Dict, Optional, Union
 
 from ..agent import Agent
 from ..config import settings
+from ..forecasting import ForecastEngine
 from ..llm import LLMClient
 from ..market import MarketData
 from ..tools import (
@@ -67,7 +68,9 @@ CASHFLOW_PROMPT = """Ты - финансовый аналитик Prizolov Agent
 разрыва.
 - Предлагай конкретные действия: что сократить, какие платежи перенести, какой \
 резерв держать.
-- Прогноз - статистическая оценка по истории, а не гарантия; говори об этом.""" + COMMON_RULES
+- Прогноз - статистическая оценка по истории, а не гарантия; говори об этом.
+- Сообщай надёжность из forecast.reliability. Если в ответе есть forecast.verified_now, \
+расскажи, насколько сбылись прошлые прогнозы.""" + COMMON_RULES
 
 MARKET_PROMPT = """Ты - рыночный аналитик Prizolov Agent OS: драгоценные металлы, \
 акции, валюты, криптовалюты, сырьё.
@@ -79,6 +82,11 @@ MARKET_PROMPT = """Ты - рыночный аналитик Prizolov Agent OS: �
 - В ответе: текущая цена и дата данных, динамика, ключевые индикаторы (тренд по \
 скользящим средним, RSI, волатильность, просадка) и прогноз как диапазон с \
 вероятностями, а не одно число.
+- Обязательно сообщай надёжность прогноза из forecast.reliability: каким методом он \
+сделан, на скольких прогнозах проверен, с какой вероятностью цена окажется в \
+интервале, как часто угадывается направление, и итоги реальных сверок, если они есть. \
+Если направление угадывается почти случайно, прямо скажи, что о росте или падении \
+уверенно судить нельзя.
 - Объясняй, что значат индикаторы и почему прогноз неопределён.
 - Всегда добавляй: это аналитика на основе исторических данных, а не инвестиционная \
 рекомендация; решения пользователь принимает сам.""" + COMMON_RULES
@@ -150,6 +158,7 @@ def create_cashflow_analyst(
     llm: Optional[LLMClient] = None,
     workspace_dir: Optional[Union[str, Path]] = None,
     approver: Optional[Approver] = None,
+    forecasts: Optional[ForecastEngine] = None,
 ) -> Agent:
     workspace = Workspace(_workspace_dir(workspace_dir))
     read_only = [t for t in file_tools(workspace) if t.name in ("list_files", "read_file")]
@@ -161,7 +170,7 @@ def create_cashflow_analyst(
             "и риск кассового разрыва."
         ),
         system_prompt=CASHFLOW_PROMPT,
-        tools=[cashflow_tool(workspace), calculator_tool(), datetime_tool(), *read_only],
+        tools=[cashflow_tool(workspace, forecasts), calculator_tool(), datetime_tool(), *read_only],
         llm=llm,
         approver=approver,
     )
@@ -172,6 +181,7 @@ def create_market_analyst(
     workspace_dir: Optional[Union[str, Path]] = None,
     approver: Optional[Approver] = None,
     market: Optional[MarketData] = None,
+    forecasts: Optional[ForecastEngine] = None,
 ) -> Agent:
     workspace = Workspace(_workspace_dir(workspace_dir))
     read_only = [t for t in file_tools(workspace) if t.name in ("list_files", "read_file")]
@@ -184,7 +194,7 @@ def create_market_analyst(
         ),
         system_prompt=MARKET_PROMPT,
         tools=[
-            *market_tools(market or MarketData(), workspace),
+            *market_tools(market or MarketData(), workspace, forecasts),
             calculator_tool(),
             datetime_tool(),
             *read_only,
@@ -199,6 +209,7 @@ def create_specialists(
     workspace_dir: Optional[Union[str, Path]] = None,
     approver: Optional[Approver] = None,
     market: Optional[MarketData] = None,
+    forecasts: Optional[ForecastEngine] = None,
 ) -> Dict[str, Agent]:
     """Все специалисты по именам: assistant, researcher, writer, cashflow_analyst,
     market_analyst."""
@@ -206,8 +217,8 @@ def create_specialists(
         create_assistant(llm, workspace_dir, approver),
         create_researcher(llm, workspace_dir, approver),
         create_writer(llm, workspace_dir, approver),
-        create_cashflow_analyst(llm, workspace_dir, approver),
-        create_market_analyst(llm, workspace_dir, approver, market),
+        create_cashflow_analyst(llm, workspace_dir, approver, forecasts),
+        create_market_analyst(llm, workspace_dir, approver, market, forecasts),
     ]
     return {agent.name: agent for agent in agents}
 

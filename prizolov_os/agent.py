@@ -238,8 +238,8 @@ class Agent:
                 self._emit(ev.TOOL_CALL, tool=call.name, input=call.input, server=False)
                 result = self.tools.execute(call, self.approver)
                 self._emit(
-                    ev.TOOL_RESULT, tool=call.name, is_error=result.is_error,
-                    output=result.output[:500],
+                    ev.TOOL_RESULT, tool=call.name, input=call.input,
+                    is_error=result.is_error, output=result.output[:500],
                 )
                 results.append(result)
             tool_results.extend(results)

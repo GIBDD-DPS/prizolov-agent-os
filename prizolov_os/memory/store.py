@@ -117,6 +117,17 @@ class Store:
     def close(self) -> None:
         self._conn.close()
 
+    def add_schema(self, sql: str) -> None:
+        """Создаёт дополнительные таблицы (для модулей, которые хранят свои данные)."""
+        with self._lock:
+            self._conn.executescript(sql)
+
+    def execute(self, sql: str, params: tuple = ()) -> sqlite3.Cursor:
+        return self._execute(sql, params)
+
+    def query(self, sql: str, params: tuple = ()) -> List[sqlite3.Row]:
+        return self._query(sql, params)
+
     def _execute(self, sql: str, params: tuple = ()) -> sqlite3.Cursor:
         with self._lock, self._conn:
             return self._conn.execute(sql, params)

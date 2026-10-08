@@ -2,10 +2,11 @@
 
 import csv
 import io
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional
 
 from ..analytics import analyze_cashflow, analyze_series, parse_cashflow_csv
 from ..analytics.cashflow import parse_amount, parse_date
+from ..forecasting import ForecastEngine
 from ..market import CBR_CURRENCIES, CBR_METALS, SOURCES, MarketData
 from .base import Tool, make_schema
 from .builtin import Workspace
@@ -15,16 +16,18 @@ DATE_COLUMNS = {"date", "дата", "tradedate", "дата торгов"}
 MAX_HORIZON_DAYS = 365
 
 FORECAST_NOTE = (
-    "Прогноз - статистическая оценка по истории (средняя доходность и волатильность), "
-    "а не предсказание и не инвестиционный совет."
+    "Прогноз - статистическая оценка по истории, а не предсказание и не инвестиционный "
+    "совет. Метод выбран по точности на истории; надёжность - в forecast.reliability."
 )
 
 
-def cashflow_tool(workspace: Workspace) -> Tool:
+def cashflow_tool(workspace: Workspace, engine: Optional[ForecastEngine] = None) -> Tool:
     def handler(path: str, opening_balance: float, horizon_days: int) -> Dict[str, Any]:
         _check_horizon(horizon_days)
         transactions = parse_cashflow_csv(workspace.read_file(path))
         result = analyze_cashflow(transactions, opening_balance, horizon_days)
+        if engine:
+            engine.cashflow_forecast(result, transactions, path)
         result["note"] = (
             "Прогноз остатка исходит из того, что средний дневной поток сохранится. "
             "Разовые крупные платежи сильно влияют на оценку."
@@ -52,13 +55,20 @@ def cashflow_tool(workspace: Workspace) -> Tool:
     )
 
 
-def market_tools(market: MarketData, workspace: Workspace) -> List[Tool]:
+def market_tools(
+    market: MarketData, workspace: Workspace, engine: Optional[ForecastEngine] = None
+) -> List[Tool]:
+    engine = engine or ForecastEngine()
+
     def analyze_market(
         source: str, symbol: str, history_days: int, horizon_days: int
     ) -> Dict[str, Any]:
         _check_horizon(horizon_days)
         series = market.history(source, symbol, history_days)
         result = analyze_series(series.dates, series.closes, horizon_days)
+        result["forecast"] = engine.market_forecast(
+            series.source, series.symbol, series.dates, series.closes, horizon_days
+        )
         return {
             "source": series.source,
             "symbol": series.symbol,
@@ -71,7 +81,9 @@ def market_tools(market: MarketData, workspace: Workspace) -> List[Tool]:
     def analyze_price_csv(path: str, horizon_days: int) -> Dict[str, Any]:
         _check_horizon(horizon_days)
         dates, closes = _parse_price_csv(workspace.read_file(path))
-        return {**analyze_series(dates, closes, horizon_days), "note": FORECAST_NOTE}
+        result = analyze_series(dates, closes, horizon_days)
+        result["forecast"] = engine.market_forecast("csv", path, dates, closes, horizon_days)
+        return {**result, "note": FORECAST_NOTE}
 
     currencies = ", ".join(CBR_CURRENCIES)
     metals = ", ".join(CBR_METALS)
@@ -82,6 +94,10 @@ def market_tools(market: MarketData, workspace: Workspace) -> List[Tool]:
                 "Загружает историю цен и возвращает анализ: изменение за период, SMA/EMA, "
                 "RSI, годовую волатильность, максимальную просадку, последние цены и "
                 "вероятностный прогноз (медиана, интервалы 80% и 95%, вероятность роста). "
+                "Метод прогноза выбирается по точности на истории; в forecast.reliability - "
+                "на скольких прогнозах он проверен, процент попаданий в интервал, точность "
+                "направления и реальные сверки прошлых прогнозов. Чем длиннее история "
+                "(history_days от 365), тем надёжнее проверка. "
                 "Источники: "
                 "yahoo - мировые рынки: акции (AAPL), индексы (^GSPC), валюты (EURUSD=X, "
                 "USDRUB=X), криптовалюты (BTC-USD, ETH-USD), фьючерсы на металлы "

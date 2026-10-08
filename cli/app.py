@@ -7,6 +7,7 @@ from rich.markup import escape
 from rich.table import Table
 
 from prizolov_os.core.kernel import Kernel
+from prizolov_os.forecasting import ASSET_CLASSES, METHOD_NAMES
 from prizolov_os.improvement import prompt_diff
 from prizolov_os.llm import LLMError
 
@@ -34,6 +35,11 @@ HELP = """\
   /unlearn N              удалить урок
   /facts                  что агент помнит о вас
   /forget N               удалить факт
+[bold]Точность прогнозов[/]
+  /forecasts              журнал прогнозов, соревнование методов, точность
+  /verify                 сверить наступившие прогнозы с фактом
+  /quality                отказы источников, оценки критика и ваши оценки
+  /calibration-reset [класс]  сбросить накопленную калибровку
 [bold]Промпты[/]
   /improve [агент]        предложить улучшенный промпт по урокам
   /prompts [агент]        версии промптов
@@ -71,6 +77,10 @@ class ChatApp:
             "/forget": self.cmd_forget,
             "/improve": self.cmd_improve,
             "/prompts": self.cmd_prompts,
+            "/forecasts": self.cmd_forecasts,
+            "/verify": self.cmd_verify,
+            "/quality": self.cmd_quality,
+            "/calibration-reset": self.cmd_calibration_reset,
             "/approve-prompt": self.cmd_approve_prompt,
             "/reject-prompt": self.cmd_reject_prompt,
             "/rollback": self.cmd_rollback,
@@ -207,6 +217,109 @@ class ChatApp:
         if not self.kernel.store.delete_fact(_require_int(arg, "/forget N")):
             raise ValueError("Нет такого факта")
         self.console.print("Факт удалён.")
+
+    # --- Точность прогнозов --------------------------------------------------
+
+    def cmd_verify(self, _: str) -> None:
+        self.console.print("Сверяю прогнозы с фактом…")
+        report = self.kernel.verify_forecasts()
+        self.print_verification(report, quiet=False)
+
+    def print_verification(self, report, quiet: bool = True) -> None:
+        for error in report.errors:
+            self.console.print(f"[yellow]Не удалось получить факт: {escape(error)}[/]")
+        if report.verified:
+            hits = sum(1 for f in report.verified if f.hit_80)
+            self.console.print(
+                f"[cyan]Сверено прогнозов: {len(report.verified)}, "
+                f"в 80%-й интервал попало {hits}. Подробнее: /forecasts[/]"
+            )
+            if not quiet:
+                table = Table("#", "Актив", "Дата", "Прогноз", "Факт", "Ошибка", "В интервале")
+                for f in report.verified:
+                    table.add_row(
+                        str(f.id), escape(f.symbol), f.target_date.isoformat(),
+                        f"{f.median:.4g}", f"{f.actual:.4g}", f"{f.error_pct:+.1f}%",
+                        "да" if f.hit_80 else "нет",
+                    )
+                self.console.print(table)
+        elif not quiet:
+            self.console.print("Нет прогнозов, срок которых уже наступил.")
+
+    def cmd_forecasts(self, _: str) -> None:
+        journal = self.kernel.forecasts
+        counts = journal.counts()
+        self.console.print(
+            f"Прогнозов: ожидают сверки {counts.get('pending', 0)}, "
+            f"сверено {counts.get('verified', 0)}, "
+            f"не удалось сверить {counts.get('unverifiable', 0)}."
+        )
+        board = journal.leaderboard()
+        if not board:
+            self.console.print("Пока нет данных: попросите прогноз, например курса доллара.")
+            return
+        table = Table(
+            "Класс", "Горизонт", "Метод", "Проверено\nна истории", "В 80%\nинтервале",
+            "Направление", "Ошибка", "Сверено\nвживую", "В 80%\n(вживую)",
+            title="Соревнование методов",
+        )
+
+        def pct(value):
+            return "—" if value is None else f"{value * 100:.0f}%"
+
+        for row in board:
+            bt, live = row["backtest"], row["live"]
+            table.add_row(
+                ASSET_CLASSES.get(row["asset_class"], row["asset_class"]),
+                row["bucket"],
+                METHOD_NAMES.get(row["method"], row["method"]),
+                str(bt.n), pct(bt.pass_rate_80), pct(bt.direction_rate),
+                "—" if bt.mean_abs_error_pct is None else f"{bt.mean_abs_error_pct:.1f}%",
+                str(live.n), pct(live.pass_rate_80),
+            )
+        self.console.print(table)
+        live = journal.live_accuracy()
+        if live.n:
+            self.console.print(
+                f"Все сверенные прогнозы: {live.n}, в 80%-й интервал {pct(live.pass_rate_80)}, "
+                f"в 95%-й {pct(live.pass_rate_95)}, направление {pct(live.direction_rate)}, "
+                f"средняя ошибка {live.mean_abs_error_pct:.1f}%."
+            )
+
+    def cmd_quality(self, _: str) -> None:
+        report = self.kernel.quality.report()
+        tools = report["tools"]
+        if tools:
+            table = Table("Инструмент", "Агент", "Вызовов", "Ошибок", "Доля ошибок",
+                          title=f"Инструменты и источники за {report['days']} дней")
+            for t in tools:
+                table.add_row(escape(t.key), agent_title(t.agent), str(t.calls),
+                              str(t.errors), f"{t.error_rate * 100:.0f}%")
+            self.console.print(table)
+        critic = report["critic"]
+        if critic["checks"]:
+            self.console.print(
+                f"Самопроверка: {critic['checks']} проверок, средняя оценка "
+                f"{critic['average_score']}/10, доработок {critic['revisions']}."
+            )
+        for agent, marks in report["feedback"].items():
+            self.console.print(
+                f"Ваши оценки ({escape(agent_title(agent))}): "
+                f"хороших {marks['good']}, плохих {marks['bad']}."
+            )
+        if not (tools or critic["checks"] or report["feedback"]):
+            self.console.print("Статистики пока нет.")
+
+    def cmd_calibration_reset(self, arg: str) -> None:
+        classes = {v: k for k, v in ASSET_CLASSES.items()}
+        asset_class = classes.get(arg, arg) or None
+        if asset_class and asset_class not in ASSET_CLASSES:
+            raise ValueError(f"Неизвестный класс. Доступны: {', '.join(ASSET_CLASSES)}")
+        if not confirm(self.ask, "Сбросить накопленную калибровку?"):
+            self.console.print("Отменено.")
+            return
+        self.kernel.forecasts.reset(asset_class)
+        self.console.print("Калибровка сброшена; журнал прогнозов сохранён.")
 
     # --- Промпты -------------------------------------------------------------
 
