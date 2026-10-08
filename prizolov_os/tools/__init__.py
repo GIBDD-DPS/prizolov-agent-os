@@ -13,6 +13,7 @@ from .base import (
     ToolRegistry,
     ToolResult,
     make_schema,
+    serialized,
 )
 from .builtin import (
     Workspace,
@@ -30,6 +31,7 @@ from .knowledge_tools import knowledge_tool
 from .memory_tools import memory_tools
 
 __all__ = [
+    "serialized",
     "knowledge_tool",
     "chart_tools",
     "memory_tools",

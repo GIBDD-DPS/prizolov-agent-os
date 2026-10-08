@@ -4,6 +4,7 @@
 
 """Офлайн-заглушка LLM для тестов и демонстраций без API-ключа."""
 
+import threading
 from typing import Any, Dict, List, Optional, Union
 
 from .base import LLMResponse
@@ -39,6 +40,7 @@ class FakeLLMClient:
     def __init__(self, responses: Optional[List[Scripted]] = None) -> None:
         self._responses = list(responses or [])
         self.calls: List[Dict[str, Any]] = []
+        self._lock = threading.Lock()
 
     def complete(
         self,
@@ -50,19 +52,20 @@ class FakeLLMClient:
         output_schema: Optional[Dict[str, Any]] = None,
         compact: bool = False,
     ) -> LLMResponse:
-        self.calls.append(
-            {
-                "system": system,
-                "messages": list(messages),
-                "tools": tools,
-                "max_tokens": max_tokens,
-                "output_schema": output_schema,
-                "compact": compact,
-            }
-        )
-        if self._responses:
-            item = self._responses.pop(0)
-            return text_response(item) if isinstance(item, str) else item
+        with self._lock:
+            self.calls.append(
+                {
+                    "system": system,
+                    "messages": list(messages),
+                    "tools": tools,
+                    "max_tokens": max_tokens,
+                    "output_schema": output_schema,
+                    "compact": compact,
+                }
+            )
+            if self._responses:
+                item = self._responses.pop(0)
+                return text_response(item) if isinstance(item, str) else item
         return text_response(f"[fake] {_last_user_text(messages)}")
 
 

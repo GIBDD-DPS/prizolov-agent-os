@@ -9,6 +9,7 @@
 """
 
 import logging
+import threading
 from dataclasses import dataclass
 from datetime import date
 from typing import Any, Dict, List, Optional
@@ -94,6 +95,7 @@ class Budget:
         self.day_limit_usd = day_limit_usd
         self.task_spent_usd = 0.0
         self._today = today
+        self._lock = threading.Lock()
 
     def start_task(self) -> None:
         self.task_spent_usd = 0.0
@@ -114,7 +116,8 @@ class Budget:
             )
 
     def add(self, usd: float) -> None:
-        self.task_spent_usd += usd
+        with self._lock:
+            self.task_spent_usd += usd
         self.store.execute(
             "INSERT INTO spend (day, usd, requests) VALUES (?, ?, 1) ON CONFLICT(day) DO "
             "UPDATE SET usd = usd + excluded.usd, requests = requests + 1",

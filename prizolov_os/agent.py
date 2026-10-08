@@ -5,8 +5,9 @@
 """ИИ-агент: роль, инструменты и цикл «модель → инструменты → модель»."""
 
 import logging
+from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass, field
-from typing import Any, Callable, Dict, Iterable, List, Optional, Tuple, Union
+from typing import Any, Callable, Dict, Iterable, List, Optional, Set, Tuple, Union
 
 from . import events as ev
 from .events import EventBus
@@ -104,6 +105,10 @@ class Agent:
         self.events: Optional[EventBus] = None
         # Разрешить серверное сжатие длинной истории (включается для Директора).
         self.compact_history = False
+        # Инструменты, которые можно выполнять одновременно, если модель вызвала
+        # несколько сразу (у Директора - delegate), и сколько одновременно.
+        self.parallel_tools: Set[str] = set()
+        self.max_parallel = 1
         self.history: List[Dict[str, Any]] = []
         self.memory: List[Tuple[str, str]] = []
         self._llm = llm
@@ -167,6 +172,29 @@ class Agent:
     def reset(self) -> None:
         """Начинает новый диалог."""
         self.history = []
+
+    def _execute_calls(self, calls: List[Any]) -> List[ToolResult]:
+        """Выполняет вызовы; независимые (parallel_tools) - одновременно, порядок сохраняется."""
+        parallel = (
+            len(calls) > 1
+            and self.max_parallel > 1
+            and all(call.name in self.parallel_tools for call in calls)
+        )
+        if not parallel:
+            return [self._execute_call(call) for call in calls]
+        with ThreadPoolExecutor(max_workers=min(self.max_parallel, len(calls))) as pool:
+            return list(pool.map(self._execute_call, calls))
+
+    def _execute_call(self, call: Any) -> ToolResult:
+        self._emit(ev.TOOL_CALL, tool=call.name, input=call.input, server=False)
+        result = self.tools.execute(call, self.approver)
+        self._emit(
+            ev.TOOL_RESULT, tool=call.name, input=call.input,
+            is_error=result.is_error, output=result.output[:500],
+        )
+        if result.suspicious:
+            self._emit(ev.INJECTION_WARNING, tool=call.name, snippets=result.suspicious)
+        return result
 
     def _emit(self, type: str, **data: Any) -> None:
         if self.events is not None:
@@ -250,17 +278,7 @@ class Agent:
             if response.stop_reason != "tool_use" or not calls:
                 return finish(response.text, "end_turn")
 
-            results = []
-            for call in calls:
-                self._emit(ev.TOOL_CALL, tool=call.name, input=call.input, server=False)
-                result = self.tools.execute(call, self.approver)
-                self._emit(
-                    ev.TOOL_RESULT, tool=call.name, input=call.input,
-                    is_error=result.is_error, output=result.output[:500],
-                )
-                if result.suspicious:
-                    self._emit(ev.INJECTION_WARNING, tool=call.name, snippets=result.suspicious)
-                results.append(result)
+            results = self._execute_calls(calls)
             tool_results.extend(results)
             # Все результаты - одним сообщением, как требует API.
             messages.append({"role": "user", "content": [r.to_api() for r in results]})

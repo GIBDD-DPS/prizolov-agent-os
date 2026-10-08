@@ -33,6 +33,7 @@ class Settings:
         trace_dir: Папка журналов трассировки
         trace_content: Писать в журнал полные тексты (по умолчанию - сокращённые)
         compact_at: Сжимать историю диалога после стольких токенов (0 - не сжимать)
+        parallel: Сколько поручений специалистам выполнять одновременно (1 - по очереди)
         log_level: Уровень логирования (DEBUG, INFO, WARNING, ERROR)
         log_file: Путь к файлу логов (опционально)
         security_level: Уровень безопасности (low, medium, high)
@@ -53,6 +54,7 @@ class Settings:
     trace_dir: str = "logs"
     trace_content: bool = False
     compact_at: int = 150_000
+    parallel: int = 4
     log_level: str = "INFO"
     log_file: Optional[str] = None
     security_level: str = "high"
@@ -90,6 +92,7 @@ class Settings:
             trace_dir=os.getenv("PRIZOLOV_TRACE_DIR", "logs"),
             trace_content=_flag("PRIZOLOV_TRACE_CONTENT", False),
             compact_at=int(os.getenv("PRIZOLOV_COMPACT_AT", "150000")),
+            parallel=int(os.getenv("PRIZOLOV_PARALLEL", "4")),
             log_level=os.getenv("PRIZOLOV_LOG_LEVEL", "INFO"),
             log_file=os.getenv("PRIZOLOV_LOG_FILE"),
             security_level=os.getenv("PRIZOLOV_SECURITY_LEVEL", "high"),
@@ -135,6 +138,9 @@ class Settings:
 
         if self.max_tokens <= 0:
             raise ValueError("max_tokens must be positive")
+
+        if not 1 <= self.parallel <= 16:
+            raise ValueError("parallel: от 1 до 16")
 
         if self.compact_at and self.compact_at < 50_000:
             raise ValueError("compact_at: минимум 50000 токенов (или 0 - не сжимать)")

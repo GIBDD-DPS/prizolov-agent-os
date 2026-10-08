@@ -36,7 +36,7 @@ from ..llm import LLMClient, create_client
 from ..market import MarketData, MarketDataError
 from ..memory import APPROVED, PENDING, REJECTED, CustomToolRecord, Lesson, PromptVersion, Store
 from ..quality import QualityMonitor
-from ..tools import Approver, knowledge_tool, memory_tools
+from ..tools import Approver, knowledge_tool, memory_tools, serialized
 from ..tracing import Tracer
 from .orchestrator import Orchestrator
 
@@ -128,6 +128,7 @@ class Kernel:
         market = market or MarketData()
         budget = Budget(store, settings.budget_task_usd, settings.budget_day_usd)
         metered = MeteredLLM(llm or create_client(), budget)
+        approver = serialized(approver)
         engine = ForecastEngine(ForecastJournal(store))
         knowledge = KnowledgeBase(store, Path(workspace_dir or settings.workspace_dir))
         specialists = create_specialists(
@@ -395,6 +396,8 @@ class Kernel:
                 director.tools.add(build_tool(record))
 
         director.compact_history = settings.compact_at > 0
+        director.parallel_tools = {"delegate"}
+        director.max_parallel = settings.parallel
         for name, agent in self.agents.items():
             active = self.store.active_prompt(name)
             if active:

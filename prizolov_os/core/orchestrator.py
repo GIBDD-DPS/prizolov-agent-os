@@ -5,6 +5,7 @@
 """Оркестратор: агент-Директор распределяет задачу между специалистами."""
 
 import logging
+import threading
 from dataclasses import dataclass, field
 from typing import Any, Dict, Iterable, List, Optional, Union
 
@@ -34,6 +35,8 @@ prizolov.ru) и работает на моделях Claude от Anthropic. Ес
 - Специалисты не видят разговор с пользователем и работу друг друга. В каждое \
 поручение вкладывай всё нужное: цель, исходные данные, имена файлов, ограничения, \
 ожидаемый формат результата.
+- Независимые подзадачи (например, анализ нескольких активов или разных тем) поручай \
+одним ответом - несколькими вызовами delegate сразу: они выполнятся одновременно.
 - Если шаг зависит от предыдущего, передай результат предыдущего шага целиком. \
 Например: исследователь собирает факты, затем писатель получает эти факты и пишет текст.
 - Проверяй результаты. Если результат неполный или ошибочный, поручи доработку с \
@@ -86,6 +89,7 @@ class Orchestrator:
         self.execution_log: List[Delegation] = []
         self._run_usage = Usage()
         self._run_delegations = 0
+        self._lock = threading.Lock()  # поручения могут выполняться одновременно
         self.last_run_delegations: List[Delegation] = []
         self.director = Agent(
             role="директор",
@@ -140,16 +144,17 @@ class Orchestrator:
         specialist = self.specialists.get(agent)
         if specialist is None:
             raise ValueError(f"Нет специалиста '{agent}'. Доступны: {', '.join(self.specialists)}")
-        if self._run_delegations >= self.max_delegations:
-            raise DelegationLimitError(
-                f"Лимит поручений ({self.max_delegations}) исчерпан. "
-                "Собери ответ из уже полученных результатов."
-            )
-        self._run_delegations += 1
+        record = Delegation(agent=agent, task=task, status="running")
+        with self._lock:
+            if self._run_delegations >= self.max_delegations:
+                raise DelegationLimitError(
+                    f"Лимит поручений ({self.max_delegations}) исчерпан. "
+                    "Собери ответ из уже полученных результатов."
+                )
+            self._run_delegations += 1
+            self.execution_log.append(record)
         logger.info(f"Delegating to {agent}: {task[:80]}")
 
-        record = Delegation(agent=agent, task=task, status="running")
-        self.execution_log.append(record)
         self._emit(ev.DELEGATION_START, specialist=agent, task=task)
         try:
             result = specialist.run(task)
@@ -162,7 +167,8 @@ class Orchestrator:
         record.status, record.iterations, record.usage, record.result = (
             result.stop_reason, result.iterations, result.usage, result.text
         )
-        add_usage(self._run_usage, result.usage)
+        with self._lock:
+            add_usage(self._run_usage, result.usage)
 
         if result.completed:
             return result.text
