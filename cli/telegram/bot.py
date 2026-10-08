@@ -87,6 +87,7 @@ def build_application(token: str, allowed_ids: Set[int], workspace_dir: Path) ->
             holder["service"] = TelegramService(
                 io, Kernel.create, allowed_ids, workspace_dir
             )
+            holder["scheduler"] = holder["service"].start_scheduler()
         return holder["service"]
 
     async def on_text(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -120,6 +121,10 @@ def build_application(token: str, allowed_ids: Set[int], workspace_dir: Path) ->
         await query.answer(answer)
         await query.edit_message_reply_markup(None)
 
+    async def on_start(app: Any) -> None:
+        service()  # создаёт сервис и запускает планировщик сразу при старте бота
+
+    application.post_init = on_start
     application.add_handler(MessageHandler(filters.Document.ALL, on_document))
     application.add_handler(MessageHandler(filters.TEXT, on_text))
     application.add_handler(CallbackQueryHandler(on_button, pattern=r"^approve:"))

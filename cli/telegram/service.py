@@ -45,7 +45,7 @@ UPLOAD_SUFFIXES = {".pdf", ".docx", ".xlsx", ".xlsm", ".csv", ".txt", ".md"}
 ALLOWED_COMMANDS = {
     "/new", "/sessions", "/status", "/log", "/cost", "/budget", "/good", "/bad",
     "/lessons", "/facts", "/forecasts", "/verify", "/quality", "/index", "/prompts",
-    "/tools", "/improve",
+    "/tools", "/improve", "/schedule",
 }
 HELP = (
     f"{HEADER}\n\n"
@@ -54,6 +54,8 @@ HELP = (
     "Команды: /new - новый диалог, /good и /bad комментарий - оценка ответа, "
     "/cost - расходы, /forecasts - точность прогнозов, /verify - сверить прогнозы, "
     "/quality - качество, /facts, /lessons, /status, /index.\n"
+    "Расписание: /schedule; например /schedule report \"по будням 9:00\" GOLD 1,7,15,30 "
+    "или просто попросите «присылай каждое утро обзор золота».\n"
     "Одобрение инструментов и промптов, сброс калибровки - в CLI (prizolov chat)."
 )
 
@@ -221,6 +223,24 @@ class TelegramService:
                 "Что с ним сделать?"
             )
 
+    # --- Расписание ----------------------------------------------------------
+
+    def notify(self, chat_id: int, text: str, files: List[Path]) -> None:
+        """Доставка результата задачи по расписанию в чат."""
+        for part in split_message(text):
+            self.io.send_text(chat_id, to_telegram_html(part), html=True)
+        for path in files:
+            if Path(path).is_file():
+                self.io.send_photo(chat_id, Path(path), caption=Path(path).name)
+
+    def start_scheduler(self, interval: float = 30.0) -> Any:
+        """Запускает планировщик в фоне (одним процессом с ботом)."""
+        from prizolov_os.scheduler import ScheduleRunner
+
+        kernel = self.kernel_factory(workspace_dir=self.workspace_dir)
+        kernel.schedules.ensure_builtin()
+        return ScheduleRunner(kernel, notifier=self.notify).start_background(interval)
+
     # --- Подтверждения -------------------------------------------------------
 
     def approver_for(self, chat_id: int) -> Callable[[str, Dict[str, Any]], bool]:
@@ -273,6 +293,7 @@ class TelegramService:
                     approver=self.approver_for(chat_id), session_id=session_id,
                     workspace_dir=self.workspace_dir,
                 )
+                kernel.chat_id = chat_id
                 if kernel.store.load_session(session_id) is not None:
                     kernel.resume(session_id)
                 chat = self._chats[chat_id] = _Chat(kernel)

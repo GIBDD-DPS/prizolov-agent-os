@@ -50,7 +50,8 @@ def build_parser() -> argparse.ArgumentParser:
     report.add_argument("--source", choices=["yahoo", "moex", "cbr"], help="источник данных")
     report.add_argument("--horizons", default="1,7,15,30", help="горизонты в днях через запятую")
     report.add_argument("--history", type=int, default=365, help="дней истории")
-    sub.add_parser("telegram", help="запустить Telegram-бота")
+    sub.add_parser("telegram", help="запустить Telegram-бота (с расписанием)")
+    sub.add_parser("scheduler", help="запустить только планировщик задач")
     return parser
 
 
@@ -73,6 +74,9 @@ def main(
     if args.command == "report":
         setup_logging(level=logging.DEBUG if args.verbose else logging.ERROR)
         return run_report(console, args)
+    if args.command == "scheduler":
+        setup_logging(level=logging.DEBUG if args.verbose else logging.INFO)
+        return run_scheduler(console, kernel_factory)
     if args.command == "telegram":
         from .telegram.bot import run as run_telegram
 
@@ -140,6 +144,28 @@ def run_report(console: Console, args: argparse.Namespace, market: Any = None) -
     print_report(console, report)
     console.print(f"\nОтчёт: {path}\nГрафик: {report.chart}")
     console.print("[dim]Прогнозы записаны в журнал и будут сверены с фактом (/forecasts).[/]")
+    return 0
+
+
+def run_scheduler(console: Console, kernel_factory: KernelFactory) -> int:
+    """prizolov scheduler: выполняет задачи по расписанию; результаты - в workspace/reports.
+
+    Результаты для Telegram-чатов доставляются, только если запущен бот
+    (prizolov telegram запускает планировщик сам).
+    """
+    import threading
+
+    from prizolov_os.scheduler import ScheduleRunner
+
+    kernel = kernel_factory()
+    kernel.schedules.ensure_builtin()
+    tasks = kernel.schedules.list()
+    console.print(f"Планировщик запущен: задач {len(tasks)}. Ctrl+C - остановить.")
+    stop = threading.Event()
+    try:
+        ScheduleRunner(kernel).run_forever(stop)
+    except KeyboardInterrupt:
+        stop.set()
     return 0
 
 
