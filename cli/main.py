@@ -44,6 +44,7 @@ def build_parser() -> argparse.ArgumentParser:
     run = sub.add_parser("run", help="выполнить одну задачу")
     run.add_argument("task", nargs="+", help="текст задачи")
     sub.add_parser("sessions", help="список сохранённых диалогов")
+    sub.add_parser("telegram", help="запустить Telegram-бота")
     return parser
 
 
@@ -63,6 +64,11 @@ def main(
     except ValueError as e:
         console.print(f"[red]Ошибка конфигурации: {e}[/]")
         return 1
+    if args.command == "telegram":
+        from .telegram.bot import run as run_telegram
+
+        setup_logging(level=logging.DEBUG if args.verbose else logging.WARNING)
+        return run_telegram()
     # Ошибки инструментов и так видны в строках прогресса; в лог консоли - только сбои.
     setup_logging(level=logging.DEBUG if args.verbose else logging.ERROR)
 

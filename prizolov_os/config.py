@@ -34,6 +34,8 @@ class Settings:
         trace_content: Писать в журнал полные тексты (по умолчанию - сокращённые)
         compact_at: Сжимать историю диалога после стольких токенов (0 - не сжимать)
         parallel: Сколько поручений специалистам выполнять одновременно (1 - по очереди)
+        telegram_token: Токен Telegram-бота
+        telegram_allowed_ids: Telegram ID, которым разрешён доступ к боту (через запятую)
         log_level: Уровень логирования (DEBUG, INFO, WARNING, ERROR)
         log_file: Путь к файлу логов (опционально)
         security_level: Уровень безопасности (low, medium, high)
@@ -55,6 +57,8 @@ class Settings:
     trace_content: bool = False
     compact_at: int = 150_000
     parallel: int = 4
+    telegram_token: Optional[str] = None
+    telegram_allowed_ids: str = ""
     log_level: str = "INFO"
     log_file: Optional[str] = None
     security_level: str = "high"
@@ -93,6 +97,8 @@ class Settings:
             trace_content=_flag("PRIZOLOV_TRACE_CONTENT", False),
             compact_at=int(os.getenv("PRIZOLOV_COMPACT_AT", "150000")),
             parallel=int(os.getenv("PRIZOLOV_PARALLEL", "4")),
+            telegram_token=os.getenv("TELEGRAM_BOT_TOKEN") or None,
+            telegram_allowed_ids=os.getenv("PRIZOLOV_TELEGRAM_ALLOWED_IDS", ""),
             log_level=os.getenv("PRIZOLOV_LOG_LEVEL", "INFO"),
             log_file=os.getenv("PRIZOLOV_LOG_FILE"),
             security_level=os.getenv("PRIZOLOV_SECURITY_LEVEL", "high"),

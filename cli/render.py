@@ -52,42 +52,44 @@ class ProgressPrinter:
         self.console = console
 
     def __call__(self, event: Event) -> None:
-        line = self._line(event)
+        line = progress_markup(event)
         if line:
             self.console.print(line, highlight=False)
 
-    def _line(self, event: Event) -> str:
-        data, who = event.data, escape(agent_title(event.agent))
-        if event.type == ev.DELEGATION_START:
-            specialist = escape(agent_title(data["specialist"]))
-            return f"[cyan]→ {who} → {specialist}:[/] [dim]{escape(short(data['task'], 60))}[/]"
-        if event.type == ev.DELEGATION_END:
-            specialist = escape(agent_title(data["specialist"]))
-            if data["status"] == "end_turn":
-                return f"[green]✓ {specialist} закончил[/]"
-            return f"[yellow]! {specialist}: {escape(str(data['status']))}[/]"
-        if event.type == ev.TOOL_CALL and data["tool"] != "delegate":
-            tool = escape(data["tool"])
-            params = escape(format_params(data.get("input") or {}))
-            where = " (сервер)" if data.get("server") else ""
-            return f"[dim]  ⚙ {who}: {tool}({params}){where}[/]"
-        if event.type == ev.TOOL_RESULT and data.get("is_error"):
-            return f"[yellow]  ! {escape(data['tool'])}: {escape(short(data['output'], 120))}[/]"
-        if event.type == ev.INJECTION_WARNING:
-            snippet = (data.get("snippets") or [""])[0]
-            return (
-                f"[bold red]⚠ Подозрительный текст в данных ({escape(data['tool'])}): "
-                f"«{escape(short(snippet, 90))}» — агент не будет его выполнять[/]"
-            )
-        if event.type == ev.COMPACTION:
-            return "[dim]↻ История диалога сжата: старая часть заменена кратким содержанием[/]"
-        if event.type == ev.SELF_CHECK:
-            color = "green" if data["score"] >= 7 else "yellow"
-            return f"[{color}]✓ Самопроверка: {data['score']}/10[/]"
-        if event.type == ev.REVISION:
-            issues = "; ".join(data.get("issues") or [])
-            return f"[yellow]↻ Дорабатываю ответ: {escape(short(issues, 120))}[/]"
-        return ""
+
+def progress_markup(event: Event) -> str:
+    """Строка прогресса для события (разметка rich) или пустая строка."""
+    data, who = event.data, escape(agent_title(event.agent))
+    if event.type == ev.DELEGATION_START:
+        specialist = escape(agent_title(data["specialist"]))
+        return f"[cyan]→ {who} → {specialist}:[/] [dim]{escape(short(data['task'], 60))}[/]"
+    if event.type == ev.DELEGATION_END:
+        specialist = escape(agent_title(data["specialist"]))
+        if data["status"] == "end_turn":
+            return f"[green]✓ {specialist} закончил[/]"
+        return f"[yellow]! {specialist}: {escape(str(data['status']))}[/]"
+    if event.type == ev.TOOL_CALL and data["tool"] != "delegate":
+        tool = escape(data["tool"])
+        params = escape(format_params(data.get("input") or {}))
+        where = " (сервер)" if data.get("server") else ""
+        return f"[dim]  ⚙ {who}: {tool}({params}){where}[/]"
+    if event.type == ev.TOOL_RESULT and data.get("is_error"):
+        return f"[yellow]  ! {escape(data['tool'])}: {escape(short(data['output'], 120))}[/]"
+    if event.type == ev.INJECTION_WARNING:
+        snippet = (data.get("snippets") or [""])[0]
+        return (
+            f"[bold red]⚠ Подозрительный текст в данных ({escape(data['tool'])}): "
+            f"«{escape(short(snippet, 90))}» — агент не будет его выполнять[/]"
+        )
+    if event.type == ev.COMPACTION:
+        return "[dim]↻ История диалога сжата: старая часть заменена кратким содержанием[/]"
+    if event.type == ev.SELF_CHECK:
+        color = "green" if data["score"] >= 7 else "yellow"
+        return f"[{color}]✓ Самопроверка: {data['score']}/10[/]"
+    if event.type == ev.REVISION:
+        issues = "; ".join(data.get("issues") or [])
+        return f"[yellow]↻ Дорабатываю ответ: {escape(short(issues, 120))}[/]"
+    return ""
 
 
 def make_approver(console: Console, ask: InputFn) -> Callable[[str, Dict[str, Any]], bool]:
