@@ -20,8 +20,10 @@ from .render import (
     InputFn,
     agent_title,
     confirm,
+    format_usd,
     print_answer,
     print_code,
+    print_llm_error,
     print_usage,
     short,
 )
@@ -33,6 +35,8 @@ HELP = """\
   /resume ID              продолжить диалог
   /status                 состояние системы
   /log                    поручения специалистам в последнем ответе
+  /cost                   расходы: последняя задача, сегодня, всего
+  /budget [task|day N]    лимиты расходов (на эту сессию)
 [bold]Обучение[/]
   /good [комментарий]     хороший ответ
   /bad комментарий        плохой ответ: что не так (станет уроком)
@@ -73,6 +77,8 @@ class ChatApp:
             "/sessions": self.cmd_sessions,
             "/resume": self.cmd_resume,
             "/status": self.cmd_status,
+            "/cost": self.cmd_cost,
+            "/budget": self.cmd_budget,
             "/log": self.cmd_log,
             "/good": lambda arg: self.cmd_feedback(True, arg),
             "/bad": lambda arg: self.cmd_feedback(False, arg),
@@ -127,7 +133,7 @@ class ChatApp:
         try:
             result = self.kernel.chat(message)
         except LLMError as e:
-            self.console.print(f"[red]Ошибка модели: {escape(str(e))}[/]")
+            print_llm_error(self.console, e)
             return
         except KeyboardInterrupt:
             self.console.print("[yellow]Прервано[/]")
@@ -163,6 +169,48 @@ class ChatApp:
     def cmd_resume(self, arg: str) -> None:
         count = self.kernel.resume(_require(arg, "Укажите ID диалога: /resume ID"))
         self.console.print(f"Диалог продолжен ({count} сообщений).")
+
+    def cmd_cost(self, _: str) -> None:
+        budget = self._budget()
+        self.console.print(
+            f"Последняя задача: {format_usd(budget.task_spent_usd)}; сегодня: "
+            f"{format_usd(budget.today_spent_usd())}; всего: {format_usd(budget.total_spent_usd())}"
+        )
+        history = budget.history(7)
+        if history:
+            table = Table("День", "Запросов", "Расход")
+            for row in history:
+                table.add_row(row["day"], str(row["requests"]), format_usd(row["usd"]))
+            self.console.print(table)
+        tracer = self.kernel.tracer
+        if tracer is not None:
+            self.console.print(f"[dim]Журнал трассировки: {tracer.path}[/]")
+
+    def cmd_budget(self, arg: str) -> None:
+        budget = self._budget()
+        if arg:
+            kind, _, value = arg.partition(" ")
+            try:
+                amount = float(value.replace(",", "."))
+            except ValueError:
+                raise ValueError("Формат: /budget task 2.5 или /budget day 20 (0 - без лимита)")
+            if kind not in ("task", "day") or amount < 0:
+                raise ValueError("Формат: /budget task 2.5 или /budget day 20 (0 - без лимита)")
+            setattr(budget, f"{kind}_limit_usd", amount)
+
+        def limit(value: float) -> str:
+            return "без лимита" if not value else format_usd(value)
+
+        self.console.print(
+            f"Лимит на задачу: {limit(budget.task_limit_usd)}, на день: "
+            f"{limit(budget.day_limit_usd)}. "
+            f"Сегодня потрачено {format_usd(budget.today_spent_usd())}."
+        )
+
+    def _budget(self):
+        if self.kernel.budget is None:
+            raise ValueError("Учёт расходов не подключён")
+        return self.kernel.budget
 
     def cmd_status(self, _: str) -> None:
         for key, value in self.kernel.get_status().items():
@@ -419,7 +467,7 @@ def run_once(kernel: Kernel, console: Console, task: str) -> int:
     try:
         result = kernel.run(task)
     except LLMError as e:
-        console.print(f"[red]Ошибка модели: {escape(str(e))}[/]")
+        print_llm_error(console, e)
         return 1
     print_answer(console, result.text)
     print_usage(console, result.usage)

@@ -121,10 +121,25 @@ def print_answer(console: Console, text: str) -> None:
 
 def print_usage(console: Console, usage: Usage) -> None:
     cached = f" (из кэша {usage.cache_read_input_tokens})" if usage.cache_read_input_tokens else ""
+    searches = f", поисков {usage.web_search_requests}" if usage.web_search_requests else ""
     console.print(
-        f"[dim]Токены: вход {usage.input_tokens}{cached}, выход {usage.output_tokens}[/]",
+        f"[dim]Токены: вход {usage.input_tokens}{cached}, выход {usage.output_tokens}"
+        f"{searches} · {format_usd(usage.cost_usd)}[/]",
         highlight=False,
     )
+
+
+def format_usd(value: float) -> str:
+    return f"${value:.4f}" if value < 0.01 else f"${value:.2f}"
+
+
+def print_llm_error(console: Console, error: Exception) -> None:
+    from prizolov_os.budget import BudgetExceeded
+
+    if isinstance(error, BudgetExceeded):
+        console.print(f"[yellow]{escape(str(error))}[/]")
+    else:
+        console.print(f"[red]Ошибка модели: {escape(str(error))}[/]")
 
 
 def print_code(console: Console, code: str, title: str) -> None:

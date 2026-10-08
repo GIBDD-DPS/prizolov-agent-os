@@ -105,5 +105,8 @@ class AnthropicClient:
                 output_tokens=usage.output_tokens or 0,
                 cache_read_input_tokens=usage.cache_read_input_tokens or 0,
                 cache_creation_input_tokens=usage.cache_creation_input_tokens or 0,
+                web_search_requests=getattr(
+                    getattr(usage, "server_tool_use", None), "web_search_requests", 0
+                ) or 0,
             ),
         )

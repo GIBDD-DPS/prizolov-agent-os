@@ -27,6 +27,11 @@ class Settings:
         db_path: Файл SQLite с памятью: диалоги, факты, уроки, версии промптов
         self_check: Самопроверка ответов: complex (только сложные задачи), always, off
         sign_output: Подписывать авторством текстовые файлы, которые создают агенты
+        budget_task_usd: Лимит расходов на одну задачу в долларах (0 - без лимита)
+        budget_day_usd: Лимит расходов в день в долларах (0 - без лимита)
+        trace: Писать журнал трассировки
+        trace_dir: Папка журналов трассировки
+        trace_content: Писать в журнал полные тексты (по умолчанию - сокращённые)
         log_level: Уровень логирования (DEBUG, INFO, WARNING, ERROR)
         log_file: Путь к файлу логов (опционально)
         security_level: Уровень безопасности (low, medium, high)
@@ -41,6 +46,11 @@ class Settings:
     db_path: str = "data/prizolov.db"
     self_check: str = "complex"
     sign_output: bool = True
+    budget_task_usd: float = 1.0
+    budget_day_usd: float = 10.0
+    trace: bool = True
+    trace_dir: str = "logs"
+    trace_content: bool = False
     log_level: str = "INFO"
     log_file: Optional[str] = None
     security_level: str = "high"
@@ -71,8 +81,12 @@ class Settings:
             workspace_dir=os.getenv("PRIZOLOV_WORKSPACE", "workspace"),
             db_path=os.getenv("PRIZOLOV_DB_PATH", "data/prizolov.db"),
             self_check=os.getenv("PRIZOLOV_SELF_CHECK", "complex"),
-            sign_output=os.getenv("PRIZOLOV_SIGN_OUTPUT", "true").lower()
-            not in ("false", "0", "no"),
+            sign_output=_flag("PRIZOLOV_SIGN_OUTPUT", True),
+            budget_task_usd=float(os.getenv("PRIZOLOV_BUDGET_TASK_USD", "1.0")),
+            budget_day_usd=float(os.getenv("PRIZOLOV_BUDGET_DAY_USD", "10.0")),
+            trace=_flag("PRIZOLOV_TRACE", True),
+            trace_dir=os.getenv("PRIZOLOV_TRACE_DIR", "logs"),
+            trace_content=_flag("PRIZOLOV_TRACE_CONTENT", False),
             log_level=os.getenv("PRIZOLOV_LOG_LEVEL", "INFO"),
             log_file=os.getenv("PRIZOLOV_LOG_FILE"),
             security_level=os.getenv("PRIZOLOV_SECURITY_LEVEL", "high"),
@@ -119,11 +133,21 @@ class Settings:
         if self.max_tokens <= 0:
             raise ValueError("max_tokens must be positive")
 
+        if self.budget_task_usd < 0 or self.budget_day_usd < 0:
+            raise ValueError("Лимиты расходов не могут быть отрицательными")
+
         if self.max_retries < 0:
             raise ValueError("max_retries must be non-negative")
 
         if self.timeout <= 0:
             raise ValueError("timeout must be positive")
+
+
+def _flag(name: str, default: bool) -> bool:
+    value = os.getenv(name)
+    if value is None:
+        return default
+    return value.strip().lower() not in ("false", "0", "no", "off", "")
 
 
 PLACEHOLDER_KEYS = {"your_api_key_here", "your-api-key", "sk-ant-..."}

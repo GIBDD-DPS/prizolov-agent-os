@@ -14,6 +14,7 @@ from typing import Any, Dict, List, Optional, Tuple, Union
 from .. import events as ev
 from ..agent import Agent, AgentResult, add_usage
 from ..agents import create_specialists
+from ..budget import Budget, MeteredLLM
 from ..config import settings
 from ..events import EventBus
 from ..forecasting import ASSET_CLASSES, Forecast, ForecastEngine, ForecastJournal
@@ -35,6 +36,7 @@ from ..market import MarketData, MarketDataError
 from ..memory import APPROVED, PENDING, REJECTED, CustomToolRecord, Lesson, PromptVersion, Store
 from ..quality import QualityMonitor
 from ..tools import Approver, memory_tools
+from ..tracing import Tracer
 from .orchestrator import Orchestrator
 
 logger = logging.getLogger(__name__)
@@ -75,6 +77,8 @@ class Kernel:
         self_check: str = "off",
         session_id: Optional[str] = None,
         market: Optional[MarketData] = None,
+        budget: Optional[Budget] = None,
+        tracer: Optional[Tracer] = None,
     ) -> None:
         if self_check not in SELF_CHECK_MODES:
             raise ValueError(f"self_check должен быть одним из {SELF_CHECK_MODES}")
@@ -89,6 +93,10 @@ class Kernel:
         self.market = market or MarketData()
         self.forecasts = ForecastJournal(self.store)
         self.quality = QualityMonitor(self.store, self.events)
+        self.budget = budget
+        self.tracer = tracer
+        if tracer is not None:
+            tracer.attach(self.events)
         self._llm = llm
         self._last: Optional[Tuple[str, str]] = None
         # Исходные промпты из кода: к ним возвращает откат версий.
@@ -107,20 +115,32 @@ class Kernel:
         store: Optional[Store] = None,
         self_check: Optional[str] = None,
         session_id: Optional[str] = None,
+        trace: Optional[bool] = None,
     ) -> "Kernel":
-        """Собирает ядро со всеми специалистами по настройкам."""
+        """Собирает ядро со всеми специалистами по настройкам.
+
+        Все агенты получают один LLM-клиент с учётом стоимости и лимитами расходов.
+        """
         store = store or Store(settings.db_path)
         market = market or MarketData()
+        budget = Budget(store, settings.budget_task_usd, settings.budget_day_usd)
+        metered = MeteredLLM(llm or create_client(), budget)
         engine = ForecastEngine(ForecastJournal(store))
-        specialists = create_specialists(llm, workspace_dir, approver, market, engine)
-        return cls(
-            Orchestrator(specialists, llm=llm, approver=approver),
+        specialists = create_specialists(metered, workspace_dir, approver, market, engine)
+        trace = settings.trace if trace is None else trace
+        kernel = cls(
+            Orchestrator(specialists, llm=metered, approver=approver),
             store=store,
-            llm=llm,
+            llm=metered,
             self_check=self_check or settings.self_check,
             session_id=session_id,
             market=market,
+            budget=budget,
+            tracer=Tracer(settings.trace_dir, settings.trace_content) if trace else None,
         )
+        if kernel.tracer is not None:
+            kernel.tracer._session = lambda: kernel.session_id
+        return kernel
 
     @property
     def agents(self) -> Dict[str, Agent]:
@@ -138,17 +158,23 @@ class Kernel:
     def run(self, task: str) -> AgentResult:
         """Решает задачу с чистого листа (без сохранения диалога)."""
         logger.info(f"Starting task execution: {str(task)[:50]}")
+        self._start_task()
         result = self.orchestrator.run(task)
         return self._after_answer(task, result)
 
     def chat(self, message: str) -> AgentResult:
         """Продолжает диалог и сохраняет его в памяти."""
+        self._start_task()
         result = self.orchestrator.chat(message)
         result = self._after_answer(message, result)
         history = self.orchestrator.director.history
         if history:
             self.store.save_session(self.session_id, history, title=message[:80])
         return result
+
+    def _start_task(self) -> None:
+        if self.budget is not None:
+            self.budget.start_task()
 
     def reset(self) -> None:
         """Начинает новый диалог (старый остаётся в памяти)."""

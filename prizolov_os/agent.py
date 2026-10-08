@@ -271,3 +271,5 @@ def add_usage(total: Usage, part: Usage) -> None:
     total.output_tokens += part.output_tokens
     total.cache_read_input_tokens += part.cache_read_input_tokens
     total.cache_creation_input_tokens += part.cache_creation_input_tokens
+    total.web_search_requests += part.web_search_requests
+    total.cost_usd += part.cost_usd
