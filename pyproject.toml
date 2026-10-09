@@ -10,7 +10,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "prizolov-os"
 dynamic = ["version"]
-description = "Agentic AI Operating System for autonomous business orchestration"
+description = "Команда ИИ-агентов на Claude для бизнеса: оркестрация, прогнозы рынков, база знаний, Telegram и HTTP API"
 readme = { file = "README.md", content-type = "text/markdown" }
 license = { text = "Apache-2.0" }
 requires-python = ">=3.10"
@@ -29,6 +29,7 @@ classifiers = [
     "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
     "Topic :: Software Development :: Libraries :: Python Modules",
     "Topic :: Scientific/Engineering :: Artificial Intelligence",
 ]
@@ -50,14 +51,9 @@ dev = [
     "pytest>=7.0.0",
     "pytest-cov>=4.0.0",
     "black>=23.0.0",
-    "ruff>=0.1.0",
+    "ruff>=0.5.0",
     "mypy>=1.0.0",
     "pre-commit>=3.0.0",
-]
-rag = [
-    "chromadb>=0.4.0",
-    "sentence-transformers>=2.2.0",
-    "numpy>=1.24.0",
 ]
 telegram = [
     "python-telegram-bot>=21.0",
@@ -69,7 +65,6 @@ api = [
 ]
 all = [
     "prizolov-os[dev]",
-    "prizolov-os[rag]",
     "prizolov-os[api]",
     "prizolov-os[telegram]",
 ]
@@ -79,7 +74,7 @@ prizolov = "cli.main:main"
 
 [project.urls]
 Homepage = "https://github.com/GIBDD-DPS/prizolov-agent-os"
-Documentation = "https://prizolov-os.readthedocs.io"
+Documentation = "https://github.com/GIBDD-DPS/prizolov-agent-os/tree/main/docs"
 Repository = "https://github.com/GIBDD-DPS/prizolov-agent-os"
 Issues = "https://github.com/GIBDD-DPS/prizolov-agent-os/issues"
 Brand = "https://prizolov.ru"
