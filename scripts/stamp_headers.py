@@ -12,20 +12,20 @@
 """
 
 import re
+import runpy
 import subprocess
 import sys
 from pathlib import Path
 from typing import List, Optional
 
 ROOT = Path(__file__).resolve().parent.parent
-sys.path.insert(0, str(ROOT))
-
-from prizolov_os.__about__ import HEADER, __author__, __brand__, __license__, __year__  # noqa: E402
+# __about__.py читается напрямую, без импорта пакета: проверке не нужны его зависимости.
+ABOUT = runpy.run_path(str(ROOT / "prizolov_os" / "__about__.py"))
 
 LINES = [
-    HEADER,
-    f"SPDX-FileCopyrightText: {__year__} {__author__} / {__brand__}",
-    f"SPDX-License-Identifier: {__license__}",
+    ABOUT["HEADER"],
+    f"SPDX-FileCopyrightText: {ABOUT['__year__']} {ABOUT['__author__']} / {ABOUT['__brand__']}",
+    f"SPDX-License-Identifier: {ABOUT['__license__']}",
 ]
 HASH_SUFFIXES = {".py", ".toml", ".ini", ".yml", ".yaml", ".cfg", ".txt", ".cff", ".example"}
 HASH_NAMES = {".gitignore", ".env.example"}
