@@ -5,6 +5,7 @@
 """Ядро системы: Директор, специалисты, память и самосовершенствование."""
 
 import logging
+import time
 import uuid
 from dataclasses import dataclass, field
 from datetime import date, timedelta
@@ -36,7 +37,8 @@ from ..llm import LLMClient, create_client
 from ..market import MarketData, MarketDataError
 from ..memory import APPROVED, PENDING, REJECTED, CustomToolRecord, Lesson, PromptVersion, Store
 from ..quality import QualityMonitor
-from ..tools import Approver, knowledge_tool, memory_tools
+from ..scheduler import ScheduleStore, report_payload
+from ..tools import Approver, knowledge_tool, memory_tools, serialized
 from ..tracing import Tracer
 from .orchestrator import Orchestrator
 
@@ -81,6 +83,7 @@ class Kernel:
         budget: Optional[Budget] = None,
         tracer: Optional[Tracer] = None,
         knowledge: Optional[KnowledgeBase] = None,
+        workspace_dir: Optional[Union[str, Path]] = None,
     ) -> None:
         if self_check not in SELF_CHECK_MODES:
             raise ValueError(f"self_check должен быть одним из {SELF_CHECK_MODES}")
@@ -98,6 +101,12 @@ class Kernel:
         self.budget = budget
         self.tracer = tracer
         self.knowledge = knowledge
+        self.workspace_dir = Path(workspace_dir or settings.workspace_dir)
+        self.schedules = ScheduleStore(self.store, settings.timezone)
+        # Telegram-чат, из которого работает ядро (для доставки задач по расписанию).
+        self.chat_id: Optional[int] = None
+        self.created_at = time.time()
+        self._spawn_args: Optional[Dict[str, Any]] = None
         if tracer is not None:
             tracer.attach(self.events)
         self._llm = llm
@@ -128,6 +137,7 @@ class Kernel:
         market = market or MarketData()
         budget = Budget(store, settings.budget_task_usd, settings.budget_day_usd)
         metered = MeteredLLM(llm or create_client(), budget)
+        approver = serialized(approver)
         engine = ForecastEngine(ForecastJournal(store))
         knowledge = KnowledgeBase(store, Path(workspace_dir or settings.workspace_dir))
         specialists = create_specialists(
@@ -144,6 +154,11 @@ class Kernel:
             budget=budget,
             tracer=Tracer(settings.trace_dir, settings.trace_content) if trace else None,
             knowledge=knowledge,
+            workspace_dir=workspace_dir,
+        )
+        kernel._spawn_args = dict(
+            llm=llm, workspace_dir=workspace_dir, market=market, store=store,
+            self_check=self_check, trace=trace,
         )
         if kernel.tracer is not None:
             kernel.tracer._session = lambda: kernel.session_id
@@ -178,6 +193,15 @@ class Kernel:
         if history:
             self.store.save_session(self.session_id, history, title=message[:80])
         return result
+
+    def spawn(self) -> "Kernel":
+        """Новое ядро с теми же настройками и чистым диалогом (для задач по расписанию).
+
+        Без подтверждающего человека: запись файлов в таких задачах запрещена.
+        """
+        if self._spawn_args is None:
+            raise RuntimeError("spawn() доступен только для ядра из Kernel.create()")
+        return Kernel.create(**self._spawn_args)
 
     def _start_task(self) -> None:
         if self.budget is not None:
@@ -390,16 +414,58 @@ class Kernel:
         director.tools.add(propose_tool_tool(self.store, lambda: director.tools.names()))
         if self.knowledge is not None:
             director.tools.add(knowledge_tool(self.knowledge))
+        director.tools.add(self._schedule_tool())
         for record in self.store.list_custom_tools(APPROVED):
             if record.name not in director.tools:
                 director.tools.add(build_tool(record))
 
         director.compact_history = settings.compact_at > 0
+        director.parallel_tools = {"delegate"}
+        director.max_parallel = settings.parallel
         for name, agent in self.agents.items():
             active = self.store.active_prompt(name)
             if active:
                 agent.system_prompt = active.prompt
             agent.context_provider = self._lessons_provider(name)
+
+    def _schedule_tool(self) -> Any:
+        from ..tools import Tool, make_schema
+
+        def schedule_task(schedule: str, kind: str, task: str, symbol: str, horizons: str) -> str:
+            if kind == "report":
+                if not symbol.strip():
+                    raise ValueError("Для отчёта нужен symbol (например GOLD или GC=F)")
+                payload = report_payload(symbol, _parse_horizons(horizons or "1,7,15,30"))
+            else:
+                payload = task
+            created = self.schedules.add(schedule, kind, payload, chat_id=self.chat_id)
+            return (
+                f"Задача #{created.id} создана: {created.title}; расписание: {created.schedule}; "
+                f"следующий запуск {created.next_run:%d.%m.%Y %H:%M} UTC. "
+                "Управление: /schedule."
+            )
+
+        return Tool(
+            name="schedule_task",
+            description=(
+                "Создаёт регулярную задачу по расписанию, когда пользователь просит делать "
+                "что-то регулярно («присылай каждое утро обзор рынка»). schedule - по-русски "
+                "(«ежедневно 09:00», «по будням 9:30», «по понедельникам 10:00», «каждые 6 "
+                "часов») или cron. kind=report - отчёт по активу без участия модели (бесплатно; "
+                "заполни symbol и horizons); kind=task - поручение агентам (task - полная "
+                "постановка; тратит бюджет при каждом запуске). Пользователь подтверждает "
+                "создание."
+            ),
+            input_schema=make_schema({
+                "schedule": {"type": "string"},
+                "kind": {"type": "string", "enum": ["task", "report"]},
+                "task": {"type": "string", "description": "Для task - что делать; иначе ''"},
+                "symbol": {"type": "string", "description": "Для report - тикер; иначе ''"},
+                "horizons": {"type": "string", "description": "Для report, например 1,7,15,30"},
+            }),
+            handler=schedule_task,
+            requires_approval=True,
+        )
 
     def _lessons_provider(self, agent: str):
         def provide(query: str) -> str:
@@ -412,6 +478,16 @@ class Kernel:
         if agent is None:
             raise ValueError(f"Нет агента '{name}'. Доступны: {', '.join(self.agents)}")
         return agent
+
+
+def _parse_horizons(text: str) -> List[int]:
+    try:
+        values = sorted({int(h) for h in text.replace(" ", "").split(",") if h})
+    except ValueError:
+        raise ValueError("horizons: числа через запятую, например 1,7,15,30") from None
+    if not values or not all(1 <= h <= 365 for h in values):
+        raise ValueError("Горизонты - от 1 до 365 дней")
+    return values
 
 
 def _price_on(prices: Dict[date, float], target: date) -> Optional[float]:

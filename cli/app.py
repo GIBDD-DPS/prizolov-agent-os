@@ -4,7 +4,9 @@
 
 """Интерактивный чат с Prizolov OS и команды управления."""
 
+import re
 from typing import Callable, Dict
+from zoneinfo import ZoneInfo
 
 from rich.console import Console
 from rich.markup import escape
@@ -36,6 +38,11 @@ HELP = """\
   /status                 состояние системы
   /log                    поручения специалистам в последнем ответе
   /index [full]           обновить базу знаний по документам рабочей папки
+[bold]Расписание[/]
+  /schedule               список задач
+  /schedule add "ежедневно 09:00" текст задачи     поручение агентам
+  /schedule report "по будням 9:00" GOLD 1,7,15,30  отчёт без Claude (бесплатно)
+  /schedule run|pause|resume|remove N
   /cost                   расходы: последняя задача, сегодня, всего
   /budget [task|day N]    лимиты расходов (на эту сессию)
 [bold]Обучение[/]
@@ -79,6 +86,7 @@ class ChatApp:
             "/resume": self.cmd_resume,
             "/status": self.cmd_status,
             "/index": self.cmd_index,
+            "/schedule": self.cmd_schedule,
             "/cost": self.cmd_cost,
             "/budget": self.cmd_budget,
             "/log": self.cmd_log,
@@ -213,6 +221,69 @@ class ChatApp:
         if self.kernel.budget is None:
             raise ValueError("Учёт расходов не подключён")
         return self.kernel.budget
+
+    def cmd_schedule(self, arg: str) -> None:
+        from prizolov_os.scheduler import ScheduleRunner, describe, report_payload
+
+        schedules = self.kernel.schedules
+        action, _, rest = arg.partition(" ")
+        rest = rest.strip()
+        if action in ("", "list"):
+            tasks = schedules.list(chat_id=self.kernel.chat_id)
+            if not tasks:
+                self.console.print("Задач по расписанию нет. Пример: "
+                                   '/schedule report "по будням 9:00" GOLD 1,7,15,30')
+                return
+            zone = ZoneInfo(schedules.tz)
+            table = Table("#", "Когда", "Что", "Следующий запуск", "Последний", "Вкл.")
+            for t in tasks:
+                table.add_row(
+                    str(t.id), describe(t.cron), escape(short(t.title, 50)),
+                    t.next_run.astimezone(zone).strftime("%d.%m %H:%M"),
+                    t.last_status or "—", "да" if t.enabled else "пауза",
+                )
+            self.console.print(table)
+            return
+        if action in ("add", "report"):
+            match = re.match(r'^["«](.+?)["»]\s+(.+)$', rest)
+            if not match:
+                raise ValueError(
+                    'Формат: /schedule add "ежедневно 09:00" что сделать  или  '
+                    '/schedule report "по будням 9:00" GOLD 1,7,15,30'
+                )
+            when, what = match.group(1), match.group(2).strip()
+            if action == "report":
+                symbol, _, horizons = what.partition(" ")
+                horizons_list = [int(h) for h in (horizons or "1,7,15,30").split(",") if h]
+                task = schedules.add(when, "report", report_payload(symbol, horizons_list),
+                                     chat_id=self.kernel.chat_id)
+            else:
+                task = schedules.add(when, "task", what, chat_id=self.kernel.chat_id)
+            local = task.next_run.astimezone(ZoneInfo(schedules.tz))
+            self.console.print(
+                f"Задача #{task.id}: {escape(task.title)} — {describe(task.cron)}. "
+                f"Следующий запуск {local:%d.%m.%Y %H:%M}."
+            )
+            return
+        task_id = _require_int(rest, f"/schedule {action} N")
+        task = schedules.get(task_id)
+        if task is None:
+            raise ValueError(f"Нет задачи #{task_id}")
+        if action == "remove":
+            schedules.remove(task_id)
+            self.console.print(f"Задача #{task_id} удалена.")
+        elif action in ("pause", "resume"):
+            schedules.set_enabled(task_id, action == "resume")
+            state = "включена" if action == "resume" else "на паузе"
+            self.console.print(f"Задача #{task_id}: {state}.")
+        elif action == "run":
+            self.console.print(f"Выполняю задачу #{task_id}…")
+            result = ScheduleRunner(self.kernel).run(task)
+            self.console.print(escape(result.text))
+            if result.report:
+                self.console.print(f"Отчёт: {escape(str(result.report))}")
+        else:
+            raise ValueError("Действия: list, add, report, run, pause, resume, remove")
 
     def cmd_index(self, arg: str) -> None:
         knowledge = self.kernel.knowledge

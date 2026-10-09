@@ -6,6 +6,7 @@
 
 import json
 import logging
+import threading
 from dataclasses import dataclass, field
 from typing import Any, Callable, Dict, Iterable, List, Optional, Union
 
@@ -16,6 +17,19 @@ logger = logging.getLogger(__name__)
 
 # Спрашивает у человека разрешение на вызов инструмента: (имя, параметры) -> да/нет.
 Approver = Callable[[str, Dict[str, Any]], bool]
+
+
+def serialized(approver: Optional[Approver]) -> Optional[Approver]:
+    """Подтверждения по одному: несколько агентов могут спрашивать одновременно."""
+    if approver is None:
+        return None
+    lock = threading.Lock()
+
+    def ask(name: str, params: Dict[str, Any]) -> bool:
+        with lock:
+            return approver(name, params)
+
+    return ask
 
 
 class ToolInputError(ValueError):

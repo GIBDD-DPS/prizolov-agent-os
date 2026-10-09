@@ -8,13 +8,17 @@
     prizolov chat [--session ID]   интерактивный диалог
     prizolov run "задача"          одна задача
     prizolov sessions              сохранённые диалоги
+    prizolov report GOLD           отчёт по активу без Claude
+    prizolov telegram              Telegram-бот
+    prizolov api                   HTTP API
 """
 
 import argparse
 import logging
 import os
 import sys
-from typing import Callable, List, Optional
+from pathlib import Path
+from typing import Any, Callable, List, Optional
 
 from rich.console import Console
 
@@ -44,6 +48,20 @@ def build_parser() -> argparse.ArgumentParser:
     run = sub.add_parser("run", help="выполнить одну задачу")
     run.add_argument("task", nargs="+", help="текст задачи")
     sub.add_parser("sessions", help="список сохранённых диалогов")
+    report = sub.add_parser("report", help="отчёт по активу без Claude: прогнозы, таблица, график")
+    report.add_argument("symbol", help="тикер или код: GOLD, USD (ЦБ), GC=F, BTC-USD (Yahoo), SBER")
+    report.add_argument("--source", choices=["yahoo", "moex", "cbr"], help="источник данных")
+    report.add_argument("--horizons", default="1,7,15,30", help="горизонты в днях через запятую")
+    report.add_argument("--history", type=int, default=365, help="дней истории")
+    sub.add_parser("telegram", help="запустить Telegram-бота (с расписанием)")
+    sub.add_parser("scheduler", help="запустить только планировщик задач")
+    api = sub.add_parser("api", help="запустить HTTP API (документация: /docs)")
+    api.add_argument("--host", help="адрес (по умолчанию PRIZOLOV_API_HOST или 127.0.0.1)")
+    api.add_argument("--port", type=int, help="порт (по умолчанию PRIZOLOV_API_PORT или 8800)")
+    api.add_argument(
+        "--scheduler", action="store_true",
+        help="выполнять задачи по расписанию в этом же процессе (если не запущен бот)",
+    )
     return parser
 
 
@@ -63,6 +81,22 @@ def main(
     except ValueError as e:
         console.print(f"[red]Ошибка конфигурации: {e}[/]")
         return 1
+    if args.command == "report":
+        setup_logging(level=logging.DEBUG if args.verbose else logging.ERROR)
+        return run_report(console, args)
+    if args.command == "scheduler":
+        setup_logging(level=logging.DEBUG if args.verbose else logging.INFO)
+        return run_scheduler(console, kernel_factory)
+    if args.command == "api":
+        from .api.server import run as run_api
+
+        setup_logging(level=logging.DEBUG if args.verbose else logging.WARNING)
+        return run_api(args.host, args.port, args.scheduler)
+    if args.command == "telegram":
+        from .telegram.bot import run as run_telegram
+
+        setup_logging(level=logging.DEBUG if args.verbose else logging.WARNING)
+        return run_telegram()
     # Ошибки инструментов и так видны в строках прогресса; в лог консоли - только сбои.
     setup_logging(level=logging.DEBUG if args.verbose else logging.ERROR)
 
@@ -93,6 +127,60 @@ def main(
             console.print(f"[red]{e}[/]")
             return 1
     app.loop()
+    return 0
+
+
+def run_report(console: Console, args: argparse.Namespace, market: Any = None) -> int:
+    """prizolov report: прогнозы без участия модели, сохраняются в журнал для сверки."""
+    from prizolov_os.forecasting import ForecastEngine, ForecastJournal
+    from prizolov_os.market import MarketData, MarketDataError
+    from prizolov_os.memory import Store
+    from prizolov_os.reports import market_report, save_report
+
+    from .render import print_report
+
+    try:
+        horizons = sorted({int(h) for h in args.horizons.split(",") if h.strip()})
+    except ValueError:
+        console.print("[red]--horizons: числа через запятую, например 1,7,15,30[/]")
+        return 1
+    if not horizons or not all(1 <= h <= 365 for h in horizons):
+        console.print("[red]Горизонты должны быть от 1 до 365 дней[/]")
+        return 1
+    engine = ForecastEngine(ForecastJournal(Store(settings.db_path)))
+    try:
+        report = market_report(
+            market or MarketData(), engine, args.symbol, args.source, horizons, args.history
+        )
+    except MarketDataError as e:
+        console.print(f"[red]Не удалось получить котировки: {e}[/]")
+        return 1
+    path = save_report(report, Path(settings.workspace_dir) / "reports")
+    print_report(console, report)
+    console.print(f"\nОтчёт: {path}\nГрафик: {report.chart}")
+    console.print("[dim]Прогнозы записаны в журнал и будут сверены с фактом (/forecasts).[/]")
+    return 0
+
+
+def run_scheduler(console: Console, kernel_factory: KernelFactory) -> int:
+    """prizolov scheduler: выполняет задачи по расписанию; результаты - в workspace/reports.
+
+    Результаты для Telegram-чатов доставляются, только если запущен бот
+    (prizolov telegram запускает планировщик сам).
+    """
+    import threading
+
+    from prizolov_os.scheduler import ScheduleRunner
+
+    kernel = kernel_factory()
+    kernel.schedules.ensure_builtin()
+    tasks = kernel.schedules.list()
+    console.print(f"Планировщик запущен: задач {len(tasks)}. Ctrl+C - остановить.")
+    stop = threading.Event()
+    try:
+        ScheduleRunner(kernel).run_forever(stop)
+    except KeyboardInterrupt:
+        stop.set()
     return 0
 
 
