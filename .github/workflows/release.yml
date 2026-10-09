@@ -1,0 +1,100 @@
+# Prizolov Agent OS 0.3.0 | Author: Dm.Andreyanov | Brand: Prizolov Lab | © 2026
+# SPDX-FileCopyrightText: 2026 Dm.Andreyanov / Prizolov Lab
+# SPDX-License-Identifier: Apache-2.0
+
+# Выпуск версии по тегу vX.Y.Z (версия в теге должна совпадать с prizolov_os/__about__.py):
+#   1. пакет собирается и публикуется в PyPI (pip install prizolov-os);
+#   2. Docker-образ публикуется в GitHub Container Registry (ghcr.io);
+#   3. создаётся релиз на GitHub с пакетами и списком изменений.
+#
+# Однократная настройка PyPI: на pypi.org в разделе Publishing добавьте
+# «trusted publisher»: этот репозиторий, workflow release.yml, environment pypi.
+# Пароли и токены не нужны.
+
+name: Release
+
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: Сборка пакета
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+      - name: Версия в теге совпадает с версией пакета
+        run: |
+          VERSION=$(python -c "import runpy; print(runpy.run_path('prizolov_os/__about__.py')['__version__'])")
+          test "v$VERSION" = "$GITHUB_REF_NAME" || { echo "Тег $GITHUB_REF_NAME, а версия $VERSION"; exit 1; }
+      - name: Проверки
+        run: |
+          pip install -e ".[dev,telegram,api]" build
+          ruff check .
+          python scripts/stamp_headers.py --check
+          python -m pytest -q -p no:cacheprovider
+      - name: Собрать
+        run: python -m build
+      - uses: actions/upload-artifact@v4
+        with:
+          name: dist
+          path: dist/
+
+  pypi:
+    name: Публикация в PyPI
+    needs: build
+    runs-on: ubuntu-latest
+    environment: pypi
+    permissions:
+      id-token: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: dist
+          path: dist/
+      - uses: pypa/gh-action-pypi-publish@release/v1
+
+  docker:
+    name: Docker-образ в GHCR
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v5
+      - name: Имя образа
+        run: echo "IMAGE=ghcr.io/${GITHUB_REPOSITORY,,}" >> "$GITHUB_ENV"
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Собрать и опубликовать
+        run: |
+          VERSION="${GITHUB_REF_NAME#v}"
+          docker build -t "$IMAGE:$VERSION" -t "$IMAGE:latest" .
+          docker push "$IMAGE:$VERSION"
+          docker push "$IMAGE:latest"
+
+  release:
+    name: Релиз на GitHub
+    needs: [pypi, docker]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: dist
+          path: dist/
+      - uses: softprops/action-gh-release@v2
+        with:
+          files: dist/*
+          generate_release_notes: true
