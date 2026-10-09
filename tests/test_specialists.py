@@ -28,7 +28,7 @@ def specialists(tmp_path):
 def test_all_specialists_created(specialists):
     assert list(specialists) == [
         "assistant", "researcher", "writer", "cashflow_analyst", "market_analyst",
-        "lawyer",
+        "lawyer", "tender_analyst",
     ]
     for agent in specialists.values():
         assert agent.description

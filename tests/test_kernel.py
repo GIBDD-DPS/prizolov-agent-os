@@ -47,7 +47,7 @@ class TestBasics:
         status = kernel.get_status()
         assert status["specialists"] == [
             "assistant", "researcher", "writer", "cashflow_analyst", "market_analyst",
-            "lawyer",
+            "lawyer", "tender_analyst",
         ]
         assert set(kernel.orchestrator.director.tools.names()) == {
             "delegate", "remember", "recall", "propose_tool", "search_knowledge", "schedule_task"

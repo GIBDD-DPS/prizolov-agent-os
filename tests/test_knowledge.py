@@ -131,7 +131,7 @@ class TestKernelAndCli:
     def test_agents_get_search(self, docs):
         kernel = Kernel.create(llm=FakeLLMClient(), store=Store(), workspace_dir=docs)
         with_search = {n for n, a in kernel.agents.items() if "search_knowledge" in a.tools}
-        assert with_search == {"director", "researcher", "writer", "lawyer"}
+        assert with_search == {"director", "researcher", "writer", "lawyer", "tender_analyst"}
 
     def test_director_answers_from_documents(self, docs):
         kernel = Kernel.create(llm=FakeLLMClient([

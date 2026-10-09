@@ -495,6 +495,18 @@ class ApiService:
         except (PermissionError, PortfolioError, ValueError) as e:
             raise ApiError(422, str(e)) from None
 
+    def tenders(self, query: str, max_price: float, only_new: bool) -> List[Dict[str, Any]]:
+        from prizolov_os.tenders import TenderSearch, TenderSearchError
+
+        try:
+            found = TenderSearch(self.kernel.store).search(query, max_price=max_price,
+                                                           only_new=only_new)
+        except ValueError as e:
+            raise ApiError(422, str(e)) from None
+        except TenderSearchError as e:
+            raise ApiError(502, str(e)) from None
+        return [t.as_dict() for t in found]
+
     def accuracy(self) -> Dict[str, Any]:
         from prizolov_os.accuracy import accuracy_data
 

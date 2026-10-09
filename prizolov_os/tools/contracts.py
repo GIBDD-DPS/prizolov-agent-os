@@ -2,7 +2,7 @@
 # SPDX-FileCopyrightText: 2026 Dm.Andreyanov / Prizolov Lab
 # SPDX-License-Identifier: Apache-2.0
 
-"""Договоры: сравнение версий документа (что добавили, удалили, изменили)."""
+"""Договоры и закупки: сравнение версий документа, поиск закупок в ЕИС."""
 
 import difflib
 import re
@@ -93,4 +93,41 @@ def contract_tools(workspace: Workspace) -> List[Tool]:
     ]
 
 
-__all__ = ["compare_texts", "contract_tools", "paragraphs", "word_diff"]
+
+
+def tender_tools(search: Any) -> List[Tool]:
+    """Поиск закупок 44-ФЗ / 223-ФЗ в ЕИС (zakupki.gov.ru)."""
+
+    def search_tenders(query: str, max_price: float, only_new: bool) -> Dict[str, Any]:
+        tenders = search.search(query, max_price=max_price, only_new=only_new)
+        return {
+            "query": query,
+            "found": len(tenders),
+            "tenders": [t.as_dict() for t in tenders],
+            "note": ("new=true - закупка показывается впервые. Документацию (извещение, ТЗ, "
+                     "проект контракта) пользователь скачивает по ссылке url и загружает в "
+                     "рабочую папку для разбора."),
+        }
+
+    return [
+        Tool(
+            name="search_tenders",
+            description=(
+                "Ищет открытые закупки (этап подачи заявок) по 44-ФЗ и 223-ФЗ в ЕИС "
+                "zakupki.gov.ru: номер, предмет, заказчик, начальная цена, срок подачи, "
+                "ссылка. query - что ищем («поставка офисной мебели», «ремонт кровли»); "
+                "max_price - верхняя граница цены (0 - без ограничения); only_new - только "
+                "закупки, которые ещё не показывались (для ежедневной подборки)."
+            ),
+            input_schema=make_schema({
+                "query": {"type": "string"},
+                "max_price": {"type": "number"},
+                "only_new": {"type": "boolean"},
+            }),
+            handler=search_tenders,
+            untrusted=True,
+        ),
+    ]
+
+
+__all__ = ["compare_texts", "contract_tools", "paragraphs", "tender_tools", "word_diff"]

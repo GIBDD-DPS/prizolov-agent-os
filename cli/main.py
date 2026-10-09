@@ -15,6 +15,7 @@
     prizolov calendar              платёжный календарь
     prizolov accuracy              страница точности прогнозов
     prizolov portfolio мой.csv     портфель: риск, стресс-тесты, прогнозы
+    prizolov tenders мебель        поиск госзакупок
     prizolov telegram              Telegram-бот
     prizolov api                   HTTP API
 """
@@ -95,6 +96,10 @@ def build_parser() -> argparse.ArgumentParser:
     portfolio.add_argument("--tinvest", action="store_true",
                            help="взять позиции из брокерского счёта T-Invest (нужен токен)")
     portfolio.add_argument("--days", type=int, default=30, help="горизонт прогноза, дней")
+    tenders = sub.add_parser("tenders", help="поиск госзакупок 44-ФЗ / 223-ФЗ (без Claude)")
+    tenders.add_argument("query", nargs="+", help="что ищем: «поставка офисной мебели»")
+    tenders.add_argument("--max-price", type=float, default=0, help="максимальная цена, руб.")
+    tenders.add_argument("--new", action="store_true", help="только ещё не показанные")
     accuracy = sub.add_parser("accuracy", help="страница точности прогнозов (HTML)")
     accuracy.add_argument("--out", help="куда сохранить (по умолчанию workspace/reports)")
     sub.add_parser("telegram", help="запустить Telegram-бота (с расписанием)")
@@ -145,6 +150,9 @@ def main(
     if args.command == "portfolio":
         setup_logging(level=logging.DEBUG if args.verbose else logging.ERROR)
         return run_portfolio(console, args)
+    if args.command == "tenders":
+        setup_logging(level=logging.DEBUG if args.verbose else logging.ERROR)
+        return run_tenders(console, args)
     if args.command == "accuracy":
         setup_logging(level=logging.DEBUG if args.verbose else logging.ERROR)
         return run_accuracy(console, args)
@@ -316,6 +324,36 @@ def run_portfolio(console: Console, args: argparse.Namespace, market: Any = None
         console.print(f"[red]{e}[/]")
         return 1
     print_portfolio(console, result)
+    return 0
+
+
+def run_tenders(console: Console, args: argparse.Namespace, fetch: Any = None) -> int:
+    """prizolov tenders: открытые закупки в ЕИС по запросу."""
+    from rich.markup import escape
+    from rich.table import Table
+
+    from prizolov_os.memory import Store
+    from prizolov_os.tenders import TenderSearch, TenderSearchError
+
+    try:
+        tenders = TenderSearch(Store(settings.db_path), fetch).search(
+            " ".join(args.query), max_price=args.max_price, only_new=args.new,
+        )
+    except (TenderSearchError, ValueError) as e:
+        console.print(f"[red]{e}[/]")
+        return 1
+    if not tenders:
+        console.print("Закупок не найдено." + (" Новых нет." if args.new else ""))
+        return 0
+    table = Table("Номер", "Предмет", "Заказчик", "Цена, ₽", "Подача до", "",
+                  title=f"Закупки: {escape(' '.join(args.query))}")
+    for t in tenders:
+        price = f"{t.price:,.0f}".replace(",", " ") if t.price else "—"
+        table.add_row(t.number, escape(t.title[:90]), escape(t.customer[:50]), price,
+                      t.deadline or "—", "[green]новая[/]" if t.new else "")
+    console.print(table)
+    for t in tenders:
+        console.print(f"[dim]{t.number}: {t.url}[/]", highlight=False)
     return 0
 
 

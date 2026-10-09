@@ -174,9 +174,10 @@ def run_doctor(
     market: Any = None,
     key_check: Optional[KeyCheck] = None,
     online: bool = True,
+    tenders_fetch: Any = None,
 ) -> int:
     """Проверяет установку. Код выхода 1, если есть критичная ошибка."""
-    checks = collect_checks(config, market, key_check, online)
+    checks = collect_checks(config, market, key_check, online, tenders_fetch)
     table = Table(title=f"{HEADER}\nДиагностика", show_lines=False)
     table.add_column("")
     table.add_column("Проверка")
@@ -201,6 +202,7 @@ def collect_checks(
     market: Any = None,
     key_check: Optional[KeyCheck] = None,
     online: bool = True,
+    tenders_fetch: Any = None,
 ) -> List[Check]:
     checks: List[Check] = []
     version = sys.version_info
@@ -230,6 +232,7 @@ def collect_checks(
 
     if online:
         checks += _sources(market)
+        checks.append(_tenders(tenders_fetch))
 
     checks.append(_telegram(config))
     checks.append(_api(config))
@@ -282,6 +285,17 @@ def _sources(market: Any = None) -> List[Check]:
         except Exception as e:  # noqa: BLE001 - любой сбой источника - предупреждение
             result.append(Check(f"Котировки: {label}", "warn", f"недоступно: {e}"))
     return result
+
+
+def _tenders(fetch: Any = None) -> Check:
+    from prizolov_os.tenders import TenderSearch
+
+    try:
+        found = TenderSearch(fetch=fetch).search("поставка", limit=1)
+        return Check("Госзакупки (ЕИС)", "ok", f"лента отвечает, закупок в выдаче: {len(found)}")
+    except Exception as e:  # noqa: BLE001 - любой сбой площадки - предупреждение
+        return Check("Госзакупки (ЕИС)", "warn",
+                     f"недоступно: {e}. Документацию закупок можно разбирать и без поиска")
 
 
 def _telegram(config: Settings) -> Check:

@@ -63,27 +63,37 @@ def settings_for(tmp_path, **kw):
                     **kw)
 
 
+RSS_OK = b"<rss><channel></channel></rss>"
+
+
 class TestDoctor:
     def test_all_good(self, tmp_path):
         config = settings_for(tmp_path, api_key="sk-ant-x")
-        checks = collect_checks(config, StubMarket(), key_check=lambda c: "")
+        checks = collect_checks(config, StubMarket(), key_check=lambda c: "",
+                                tenders_fetch=lambda url: RSS_OK)
         assert all(c.status == "ok" for c in checks), checks
         out = console()
-        assert run_doctor(out, config, StubMarket(), key_check=lambda c: "") == 0
+        assert run_doctor(out, config, StubMarket(), key_check=lambda c: "",
+                          tenders_fetch=lambda url: RSS_OK) == 0
         assert "Всё готово" in out.file.getvalue()
 
     def test_bad_key_is_fatal(self, tmp_path):
         config = settings_for(tmp_path, api_key="sk-ant-x")
-        assert run_doctor(console(), config, StubMarket(),
-                          key_check=lambda c: "ключ не принят") == 1
+        assert run_doctor(console(), config, StubMarket(), key_check=lambda c: "ключ не принят",
+                          tenders_fetch=lambda url: RSS_OK) == 1
 
     def test_missing_key_and_sources_are_warnings(self, tmp_path, monkeypatch):
         monkeypatch.delenv("ANTHROPIC_AUTH_TOKEN", raising=False)
         config = settings_for(tmp_path)
-        checks = {c.name: c for c in collect_checks(config, StubMarket(fail=True))}
+        def offline(url):
+            raise OSError("нет сети")
+
+        checks = {c.name: c for c in collect_checks(config, StubMarket(fail=True),
+                                                    tenders_fetch=offline)}
         assert checks["Ключ Claude"].status == "warn"
+        assert checks["Госзакупки (ЕИС)"].status == "warn"
         assert checks["Котировки: ЦБ РФ"].status == "warn"
-        assert run_doctor(console(), config, StubMarket(fail=True)) == 0
+        assert run_doctor(console(), config, StubMarket(fail=True), tenders_fetch=offline) == 0
 
     def test_telegram_without_whitelist_is_fatal(self, tmp_path):
         config = settings_for(tmp_path, telegram_token="1:A")

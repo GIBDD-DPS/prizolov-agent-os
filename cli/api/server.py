@@ -273,6 +273,13 @@ def create_app(
         """Портфель: стоимость, доли, риск, стресс-тесты, прогнозы по бумагам (без Claude)."""
         return service.portfolio(body.path, body.use_tinvest, body.days)
 
+    @app.get("/v1/tenders", dependencies=v1, tags=["tenders"])
+    def tenders(q: str = Query(..., min_length=3, max_length=200),
+                max_price: float = Query(0, ge=0),
+                only_new: bool = False) -> List[Dict[str, Any]]:
+        """Открытые закупки 44-ФЗ / 223-ФЗ в ЕИС по запросу."""
+        return service.tenders(q, max_price, only_new)
+
     @app.get("/v1/accuracy", dependencies=v1, tags=["forecasts"])
     def accuracy() -> Dict[str, Any]:
         """Сводка точности сверенных прогнозов: в целом, по классам, горизонтам, активам."""
