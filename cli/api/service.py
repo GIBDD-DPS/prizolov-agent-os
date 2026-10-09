@@ -38,6 +38,7 @@ MAX_SESSIONS = 32
 MAX_HORIZON_DAYS = 365
 # Файлы рабочей папки, которые можно скачать через API.
 DOWNLOAD_DIRS = ("reports", "charts")
+ACTIVE = ("queued", "running", "waiting_approval")
 
 KernelFactory = Callable[..., Kernel]
 
@@ -246,7 +247,7 @@ class ApiService:
     def _running_job(self, session_id: str) -> Optional[Job]:
         with self._lock:
             for job in reversed(self._jobs.values()):
-                if job.session_id == session_id and job.status in ("queued", "running", "waiting_approval"):
+                if job.session_id == session_id and job.status in ACTIVE:
                     return job
         return None
 

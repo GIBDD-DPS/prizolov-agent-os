@@ -1,0 +1,66 @@
+# Prizolov Agent OS 0.3.0 | Author: Dm.Andreyanov | Brand: Prizolov Lab | © 2026
+# SPDX-FileCopyrightText: 2026 Dm.Andreyanov / Prizolov Lab
+# SPDX-License-Identifier: Apache-2.0
+
+# Проверка при каждом push и pull request: стиль кода (ruff), заголовки
+# авторства во всех файлах и тесты на Python 3.10-3.13. Сеть и ключ Claude
+# тестам не нужны: модель, котировки и Telegram имитируются.
+
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  lint:
+    name: Ruff и заголовки авторства
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Установить ruff
+        run: pip install "ruff>=0.5"
+      - name: Ruff
+        run: ruff check --output-format=github .
+      - name: Заголовки авторства
+        run: python scripts/stamp_headers.py --check
+
+  test:
+    name: Тесты (Python ${{ matrix.python-version }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.10", "3.11", "3.12", "3.13"]
+    env:
+      # Тесты не должны зависеть от ключа и писать журналы в папку проекта.
+      ANTHROPIC_API_KEY: ""
+      PRIZOLOV_TRACE: "false"
+      MPLBACKEND: Agg
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+          cache: pip
+          cache-dependency-path: pyproject.toml
+      - name: Установить пакет
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e ".[dev,telegram,api]"
+      - name: Pytest
+        run: python -m pytest -q -p no:cacheprovider

@@ -281,8 +281,8 @@ def run(host: Optional[str] = None, port: Optional[int] = None, scheduler: bool 
 
     keys = parse_api_keys(settings.api_keys)
     if not keys:
-        print("Задайте ключи доступа в PRIZOLOV_API_KEYS (через запятую), например "
-              "длинную случайную строку: python -c \"import secrets; print(secrets.token_urlsafe(32))\"")
+        print("Задайте ключи доступа в PRIZOLOV_API_KEYS (через запятую). Создать ключ:\n"
+              'python -c "import secrets; print(secrets.token_urlsafe(32))"')
         return 1
     if any(len(k) < 16 for k in keys):
         print("Ключи в PRIZOLOV_API_KEYS должны быть не короче 16 символов")

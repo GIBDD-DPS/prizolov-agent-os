@@ -17,12 +17,12 @@ def setup_logging(
 ) -> logging.Logger:
     """
     Настраивает логгирование для всего приложения.
-    
+
     Args:
         level: Уровень логирования (если None, берётся из config)
         log_file: Путь к файлу для записи логов (если None, берётся из config)
         format_string: Формат сообщений логов
-        
+
     Returns:
         Настроенный logger
     """

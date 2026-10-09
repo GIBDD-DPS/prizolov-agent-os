@@ -17,7 +17,7 @@ from typing import Optional
 class Settings:
     """
     Класс настроек приложения.
-    
+
     Атрибуты:
         api_key: API ключ Anthropic (если не задан, SDK ищет ANTHROPIC_API_KEY сам)
         model: Модель Claude
@@ -79,7 +79,7 @@ class Settings:
     def from_env(cls) -> "Settings":
         """
         Загружает настройки из переменных окружения.
-        
+
         Приоритет:
         1. Переменные окружения ОС
         2. Файл .env в корне проекта
@@ -136,7 +136,7 @@ class Settings:
     def validate(self) -> None:
         """
         Валидирует настройки.
-        
+
         Raises:
             ValueError: Если настройки некорректны
         """
