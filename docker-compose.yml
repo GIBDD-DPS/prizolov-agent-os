@@ -1,0 +1,38 @@
+# Prizolov Agent OS 0.3.0 | Author: Dm.Andreyanov | Brand: Prizolov Lab | © 2026
+# SPDX-FileCopyrightText: 2026 Dm.Andreyanov / Prizolov Lab
+# SPDX-License-Identifier: Apache-2.0
+
+# Запуск: prizolov init (или cp .env.example .env и заполнить), затем
+#   docker compose up -d                      веб-интерфейс и API: http://localhost:8800
+#   docker compose --profile telegram up -d   плюс Telegram-бот
+# Обе службы работают с одной базой в томе prizolov-data; задачи по расписанию
+# выполняются один раз, даже когда запущены обе.
+
+services:
+  api:
+    build: .
+    image: prizolov-os:0.3.0
+    command: ["prizolov", "api", "--scheduler"]
+    env_file: .env
+    environment:
+      PRIZOLOV_API_HOST: 0.0.0.0
+    ports:
+      - "127.0.0.1:8800:8800"
+    volumes:
+      - prizolov-data:/data
+    restart: unless-stopped
+
+  telegram:
+    image: prizolov-os:0.3.0
+    build: .
+    command: ["prizolov", "telegram"]
+    env_file: .env
+    volumes:
+      - prizolov-data:/data
+    restart: unless-stopped
+    profiles: ["telegram"]
+    healthcheck:
+      disable: true
+
+volumes:
+  prizolov-data:

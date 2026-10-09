@@ -64,3 +64,21 @@ jobs:
           pip install -e ".[dev,telegram,api]"
       - name: Pytest
         run: python -m pytest -q -p no:cacheprovider
+
+  docker:
+    name: Docker-образ
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v5
+      - name: Собрать образ
+        run: docker build -t prizolov-os:ci .
+      - name: Запустить и проверить веб-интерфейс и API
+        run: |
+          docker run -d --name pzl -p 8800:8800 \
+            -e PRIZOLOV_API_KEYS=ci-check-key-0123456789 prizolov-os:ci
+          for i in $(seq 1 30); do curl -sf localhost:8800/health && break; sleep 1; done
+          curl -sf localhost:8800/ | grep -q "Prizolov Agent OS"
+          curl -sf -H "X-API-Key: ci-check-key-0123456789" localhost:8800/v1/schedules | grep -q verify
+          docker exec pzl prizolov doctor --offline
+          docker logs pzl
