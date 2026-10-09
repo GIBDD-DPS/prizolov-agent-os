@@ -92,6 +92,12 @@ class PlannedPaymentRequest(BaseModel):
     until: Optional[str] = None
 
 
+class PortfolioRequest(BaseModel):
+    path: Optional[str] = Field(None, max_length=500, examples=["inbox/portfolio.csv"])
+    use_tinvest: bool = False
+    days: int = Field(30, ge=1, le=365)
+
+
 class ScheduleRequest(BaseModel):
     schedule: str = Field(..., max_length=100, examples=["по будням 9:00", "0 9 * * 1-5"])
     kind: str = Field(..., pattern="^(task|report)$")
@@ -261,6 +267,11 @@ def create_app(
     def forecasts() -> Dict[str, Any]:
         """Соревнование методов: число прогнозов, процент попаданий, реальные сверки."""
         return service.forecasts()
+
+    @app.post("/v1/portfolio", dependencies=v1, tags=["forecasts"])
+    def portfolio(body: PortfolioRequest) -> Dict[str, Any]:
+        """Портфель: стоимость, доли, риск, стресс-тесты, прогнозы по бумагам (без Claude)."""
+        return service.portfolio(body.path, body.use_tinvest, body.days)
 
     @app.get("/v1/accuracy", dependencies=v1, tags=["forecasts"])
     def accuracy() -> Dict[str, Any]:

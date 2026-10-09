@@ -28,6 +28,7 @@ from ..tools import (
     file_tools,
     knowledge_tool,
     market_tools,
+    portfolio_tool,
     web_fetch_tool,
     web_search_tool,
 )
@@ -140,6 +141,9 @@ MARKET_PROMPT = """Ты - рыночный аналитик Prizolov Agent OS: �
 Если направление угадывается почти случайно, прямо скажи, что о росте или падении \
 уверенно судить нельзя.
 - Объясняй, что значат индикаторы и почему прогноз неопределён.
+- Для портфеля пользователя используй analyze_portfolio: стоимость, доли, риск (VaR, \
+просадка), стресс-тесты и концентрация. Объясни, что значит каждая цифра и где главный \
+риск; не советуй покупать или продавать конкретные бумаги.
 - Всегда добавляй: это аналитика на основе исторических данных, а не инвестиционная \
 рекомендация; решения пользователь принимает сам.""" + COMMON_RULES
 
@@ -284,13 +288,16 @@ def create_market_analyst(
         name="market_analyst",
         description=(
             "Анализирует и прогнозирует цены металлов, акций, валют и криптовалют "
-            "(Yahoo Finance, Мосбиржа, ЦБ РФ)."
+            "(Yahoo Finance, Мосбиржа, ЦБ РФ); анализирует портфель инвестора: риск, "
+            "стресс-тесты, концентрация."
         ),
         system_prompt=MARKET_PROMPT,
         tools=[
             *market_tools(market or MarketData(), workspace, forecasts),
             *[t for t in chart_tools(market or MarketData(), workspace, forecasts)
               if t.name == "chart_market"],
+            portfolio_tool(market or MarketData(), workspace, forecasts,
+                           settings.tinvest_token),
             calculator_tool(),
             datetime_tool(),
             *read_only,

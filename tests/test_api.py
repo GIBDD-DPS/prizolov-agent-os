@@ -354,3 +354,20 @@ class TestCashflow:
         assert missing.status_code == 404
         outside = client.post("/v1/cashflow", json={"path": "../etc/passwd"}, headers=AUTH)
         assert outside.status_code == 422
+
+
+class TestPortfolio:
+    def test_portfolio_from_inbox(self, tmp_path):
+        from tests.test_portfolio import MultiMarket
+
+        client, _, llm = make_client(tmp_path, market=MultiMarket())
+        csv_text = "тикер;количество\nSBER;100\nAAPL;5\n".encode("utf-8")
+        client.put("/v1/inbox/portfolio.csv", content=csv_text, headers=AUTH)
+        result = client.post("/v1/portfolio", json={"path": "inbox/portfolio.csv"},
+                             headers=AUTH).json()
+        assert {p["symbol"] for p in result["positions"]} == {"SBER", "AAPL"}
+        assert result["total_rub"] > 0 and result["stress"]
+        assert client.post("/v1/portfolio", json={}, headers=AUTH).status_code == 422
+        tinvest = client.post("/v1/portfolio", json={"use_tinvest": True}, headers=AUTH)
+        assert tinvest.status_code == 422 and "токен" in tinvest.json()["detail"]
+        assert llm.calls == []

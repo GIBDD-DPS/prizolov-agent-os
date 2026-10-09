@@ -370,3 +370,37 @@ def calendar_tools(workspace: Workspace, calendar: Any) -> List[Tool]:
             requires_approval=True,
         ),
     ]
+
+
+def portfolio_tool(
+    market: MarketData, workspace: Workspace, engine: Optional[ForecastEngine] = None,
+    tinvest_token: Optional[str] = None,
+) -> Tool:
+    from ..portfolio import TInvestClient, analyze_portfolio, load_portfolio
+
+    def handler(path: str, use_tinvest: bool, horizon_days: int) -> Dict[str, Any]:
+        _check_horizon(horizon_days)
+        if use_tinvest:
+            positions = TInvestClient(tinvest_token or "").positions()
+        else:
+            positions = load_portfolio(workspace.resolve(path))
+        return analyze_portfolio(positions, market, engine, horizon_days)
+
+    return Tool(
+        name="analyze_portfolio",
+        description=(
+            "Анализ инвестиционного портфеля: стоимость в рублях, доли бумаг и классов "
+            "активов, годовая волатильность, VaR 95% (возможная потеря за день и месяц), "
+            "максимальная просадка, стресс-тесты (акции РФ -20%, рубль ±, крипта -40%...), "
+            "предупреждения о концентрации и прогноз по каждой бумаге. Позиции: файл CSV/Excel "
+            "в рабочей папке (тикер, количество, необязательно источник moex/yahoo/cbr и цена "
+            "покупки) или брокерский счёт T-Invest (use_tinvest=true, если задан токен)."
+        ),
+        input_schema=make_schema({
+            "path": {"type": "string", "description": "Файл портфеля; '' при use_tinvest"},
+            "use_tinvest": {"type": "boolean"},
+            "horizon_days": {"type": "integer", "description": "Горизонт прогноза, обычно 30"},
+        }),
+        handler=handler,
+        untrusted=True,
+    )

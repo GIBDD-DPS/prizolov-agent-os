@@ -470,6 +470,31 @@ class ApiService:
             row["method_name"] = METHOD_NAMES.get(row["method"], row["method"])
         return {"counts": journal.counts(), "methods": board}
 
+    def portfolio(self, path: Optional[str], use_tinvest: bool, days: int) -> Dict[str, Any]:
+        from prizolov_os.config import settings
+        from prizolov_os.portfolio import (
+            PortfolioError,
+            TInvestClient,
+            analyze_portfolio,
+            load_portfolio,
+        )
+        from prizolov_os.tools.builtin import Workspace
+
+        if not 1 <= days <= 365:
+            raise ApiError(422, "days: от 1 до 365")
+        try:
+            if use_tinvest:
+                positions = TInvestClient(settings.tinvest_token or "").positions()
+            elif path:
+                positions = load_portfolio(Workspace(self.workspace_dir).resolve(path))
+            else:
+                raise ApiError(422, "Укажите path или use_tinvest")
+            return analyze_portfolio(positions, self.kernel.market, None, days)
+        except FileNotFoundError:
+            raise ApiError(404, f"Файл {path} не найден") from None
+        except (PermissionError, PortfolioError, ValueError) as e:
+            raise ApiError(422, str(e)) from None
+
     def accuracy(self) -> Dict[str, Any]:
         from prizolov_os.accuracy import accuracy_data
 

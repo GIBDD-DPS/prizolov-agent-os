@@ -277,3 +277,45 @@ def print_payment_calendar(console: Console, plan: Dict[str, Any]) -> None:
             console.print(f"Можно попробовать перенести: {moves}", highlight=False)
     else:
         console.print("[green]Ожидаемый остаток не уходит в минус на всём горизонте.[/]")
+
+
+def print_portfolio(console: Console, result: Dict[str, Any]) -> None:
+    """Портфель: состав, риск, стресс-тесты, предупреждения."""
+    from rich.table import Table
+
+    console.print(f"[bold]Портфель: {money(result['total_rub'])} ₽[/]  " + ", ".join(
+        f"{escape(c['asset_class'])} {c['weight_pct']}%" for c in result["by_class"]),
+        highlight=False)
+    table = Table("Бумага", "Кол-во", "Цена", "Стоимость, ₽", "Доля", "Волатильность",
+                  "Доходность", "Прогноз (80%)", "Рост", title="Позиции")
+    for p in result["positions"]:
+        f = p["forecast"]
+        table.add_row(
+            escape(p["symbol"]), f"{p['quantity']:g}", f"{p['price']:g} {p['currency']}",
+            money(p["value_rub"]), f"{p['weight_pct']}%",
+            f"{p['volatility_pct']}%" if p["volatility_pct"] is not None else "—",
+            f"{p['profit_pct']:+.1f}%" if p["profit_pct"] is not None else "—",
+            f"{f['median']:g} ({f['low_80']:g}–{f['high_80']:g})",
+            f"{f['probability_up_pct']}%",
+        )
+    console.print(table)
+    risk = result["risk"]
+    if "volatility_annual_pct" in risk:
+        console.print(
+            f"Риск ({risk['period']}): волатильность {risk['volatility_annual_pct']}% в год, "
+            f"VaR 95%: за день до {money(risk['var95_1d_rub'])} ₽, за месяц до "
+            f"{money(risk['var95_1m_rub'])} ₽; максимальная просадка {risk['max_drawdown_pct']}%",
+            highlight=False,
+        )
+    if result["stress"]:
+        stress = Table("Сценарий", "Изменение, ₽", "%", title="Стресс-тест")
+        for s in result["stress"]:
+            color = "red" if s["change_rub"] < 0 else "green"
+            stress.add_row(escape(s["scenario"]), f"[{color}]{money(s['change_rub'])}[/]",
+                           f"[{color}]{s['change_pct']:+.2f}%[/]")
+        console.print(stress)
+    for warning in result["warnings"]:
+        console.print(f"[yellow]! {escape(warning)}[/]")
+    for error in result["errors"]:
+        console.print(f"[red]Не удалось оценить {escape(error)}[/]")
+    console.print(f"[italic]{escape(result['note'])}[/]")

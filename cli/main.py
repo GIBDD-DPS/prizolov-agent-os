@@ -14,6 +14,7 @@
     prizolov cashflow bank.csv     анализ выписки без Claude (1С, CSV, Excel)
     prizolov calendar              платёжный календарь
     prizolov accuracy              страница точности прогнозов
+    prizolov portfolio мой.csv     портфель: риск, стресс-тесты, прогнозы
     prizolov telegram              Telegram-бот
     prizolov api                   HTTP API
 """
@@ -87,6 +88,13 @@ def build_parser() -> argparse.ArgumentParser:
     add.add_argument("--until", help="дата окончания повторов")
     remove = calendar_sub.add_parser("remove", help="удалить плановый платёж")
     remove.add_argument("id", type=int)
+    portfolio = sub.add_parser(
+        "portfolio", help="портфель инвестора: риск, стресс-тесты, прогнозы (без Claude)"
+    )
+    portfolio.add_argument("file", nargs="?", help="CSV или Excel: тикер, количество[, источник]")
+    portfolio.add_argument("--tinvest", action="store_true",
+                           help="взять позиции из брокерского счёта T-Invest (нужен токен)")
+    portfolio.add_argument("--days", type=int, default=30, help="горизонт прогноза, дней")
     accuracy = sub.add_parser("accuracy", help="страница точности прогнозов (HTML)")
     accuracy.add_argument("--out", help="куда сохранить (по умолчанию workspace/reports)")
     sub.add_parser("telegram", help="запустить Telegram-бота (с расписанием)")
@@ -134,6 +142,9 @@ def main(
     if args.command == "cashflow":
         setup_logging(level=logging.DEBUG if args.verbose else logging.ERROR)
         return run_cashflow(console, args)
+    if args.command == "portfolio":
+        setup_logging(level=logging.DEBUG if args.verbose else logging.ERROR)
+        return run_portfolio(console, args)
     if args.command == "accuracy":
         setup_logging(level=logging.DEBUG if args.verbose else logging.ERROR)
         return run_accuracy(console, args)
@@ -272,6 +283,39 @@ def run_cashflow(console: Console, args: argparse.Namespace) -> int:
         console.print("[dim]Добавьте плановые платежи (prizolov calendar add), и прогноз "
                       "покажет день кассового разрыва.[/]")
     console.print(f"\nГрафики: {balance}\n         {monthly}")
+    return 0
+
+
+def run_portfolio(console: Console, args: argparse.Namespace, market: Any = None) -> int:
+    """prizolov portfolio: анализ портфеля без участия модели."""
+    from prizolov_os.forecasting import ForecastEngine
+    from prizolov_os.market import MarketData
+    from prizolov_os.portfolio import (
+        PortfolioError,
+        TInvestClient,
+        analyze_portfolio,
+        load_portfolio,
+    )
+
+    from .render import print_portfolio
+
+    if not args.file and not args.tinvest:
+        console.print("[red]Укажите файл (prizolov portfolio мой.csv) или --tinvest[/]")
+        return 1
+    if not 1 <= args.days <= 365:
+        console.print("[red]--days: от 1 до 365[/]")
+        return 1
+    try:
+        if args.tinvest:
+            positions = TInvestClient(settings.tinvest_token or "").positions()
+        else:
+            positions = load_portfolio(Path(args.file))
+        result = analyze_portfolio(positions, market or MarketData(), ForecastEngine(),
+                                   args.days)
+    except (OSError, PortfolioError, ValueError) as e:
+        console.print(f"[red]{e}[/]")
+        return 1
+    print_portfolio(console, result)
     return 0
 
 

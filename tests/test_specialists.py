@@ -44,7 +44,8 @@ def test_all_specialists_created(specialists):
         ("cashflow_analyst", {"analyze_cashflow", "chart_cashflow", "calculator",
                               "current_datetime", "list_files", "read_file"}),
         ("market_analyst", {"analyze_market", "analyze_price_csv", "chart_market",
-                            "calculator", "current_datetime", "list_files", "read_file"}),
+                            "analyze_portfolio", "calculator", "current_datetime",
+                            "list_files", "read_file"}),
     ],
 )
 def test_tool_sets(specialists, name, expected_tools):
