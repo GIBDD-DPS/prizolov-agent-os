@@ -5,7 +5,7 @@
 """Специалисты Prizolov OS: готовые агенты с ролью, промптом и инструментами."""
 
 from pathlib import Path
-from typing import Dict, Optional, Union
+from typing import Any, Dict, Optional, Union
 
 from ..agent import Agent
 from ..config import settings
@@ -13,11 +13,14 @@ from ..forecasting import ForecastEngine
 from ..knowledge import KnowledgeBase
 from ..llm import LLMClient
 from ..market import MarketData
+from ..memory import Store
+from ..payment_calendar import PaymentCalendar
 from ..security import DATA_RULE
 from ..tools import (
     Approver,
     Workspace,
     calculator_tool,
+    calendar_tools,
     cashflow_tool,
     chart_tools,
     datetime_tool,
@@ -75,8 +78,15 @@ WRITER_PROMPT = """Ты - писатель Prizolov Agent OS.
 CASHFLOW_PROMPT = """Ты - финансовый аналитик Prizolov Agent OS, специалист по \
 движению денежных средств бизнеса.
 
-- Для выписок в CSV используй analyze_cashflow; если остаток на начало неизвестен, \
-уточни его или прими 0 и прямо скажи об этом.
+- Выписки бывают в формате 1С (выгрузка клиент-банка, .txt), CSV или Excel - \
+analyze_cashflow читает все. Остаток на начало выписка 1С содержит сама; для CSV, если \
+он неизвестен, уточни его или прими 0 и прямо скажи об этом.
+- Показывай, куда уходят деньги, по статьям (categories).
+- Когда важен вопрос «хватит ли денег» или «когда будет разрыв», строй платёжный \
+календарь (payment_calendar): он учитывает плановые платежи. Если пользователь называет \
+будущие платежи или ожидаемые оплаты (аренда 1-го числа, зарплата 5-го и 20-го, \
+налоги, счета), добавь их (plan_payment) - пользователь подтвердит. Называй день \
+разрыва, сумму нехватки и какие платежи можно перенести.
 - Объясняй результат простым языком: сколько пришло и ушло, куда уходят деньги, \
 какой остаток ожидается и с каким диапазоном неопределённости, есть ли риск кассового \
 разрыва.
@@ -183,6 +193,7 @@ def create_cashflow_analyst(
     workspace_dir: Optional[Union[str, Path]] = None,
     approver: Optional[Approver] = None,
     forecasts: Optional[ForecastEngine] = None,
+    calendar: Optional[Any] = None,
 ) -> Agent:
     workspace = Workspace(_workspace_dir(workspace_dir))
     read_only = [t for t in file_tools(workspace) if t.name in ("list_files", "read_file")]
@@ -190,12 +201,13 @@ def create_cashflow_analyst(
         role="финансовый аналитик",
         name="cashflow_analyst",
         description=(
-            "Анализирует движение денег бизнеса по выписке (CSV) и прогнозирует остаток "
-            "и риск кассового разрыва."
+            "Анализирует движение денег бизнеса по выписке (1С, CSV, Excel): статьи "
+            "расходов, прогноз остатка, платёжный календарь и риск кассового разрыва."
         ),
         system_prompt=CASHFLOW_PROMPT,
         tools=[
             cashflow_tool(workspace, forecasts),
+            *(calendar_tools(workspace, calendar) if calendar is not None else []),
             *[t for t in chart_tools(MarketData(), workspace, forecasts)
               if t.name == "chart_cashflow"],
             calculator_tool(),
@@ -244,6 +256,7 @@ def create_specialists(
     market: Optional[MarketData] = None,
     forecasts: Optional[ForecastEngine] = None,
     knowledge: Optional[KnowledgeBase] = None,
+    store: Optional[Store] = None,
 ) -> Dict[str, Agent]:
     """Все специалисты по именам: assistant, researcher, writer, cashflow_analyst,
     market_analyst."""
@@ -251,7 +264,10 @@ def create_specialists(
         create_assistant(llm, workspace_dir, approver),
         create_researcher(llm, workspace_dir, approver, knowledge=knowledge),
         create_writer(llm, workspace_dir, approver, knowledge=knowledge),
-        create_cashflow_analyst(llm, workspace_dir, approver, forecasts),
+        create_cashflow_analyst(
+            llm, workspace_dir, approver, forecasts,
+            PaymentCalendar(store) if store is not None else None,
+        ),
         create_market_analyst(llm, workspace_dir, approver, market, forecasts),
     ]
     return {agent.name: agent for agent in agents}

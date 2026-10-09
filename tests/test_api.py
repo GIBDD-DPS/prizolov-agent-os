@@ -317,3 +317,40 @@ class TestWeb:
         methods = client.get("/v1/forecasts", headers=AUTH).json()["methods"]
         assert methods and methods[0]["asset_class_name"] == "драгметаллы"
         assert all(m["method_name"] != m["method"] for m in methods)
+
+
+class TestCashflow:
+    def test_statement_calendar_and_gap(self, tmp_path):
+        from pathlib import Path
+
+        client, _, llm = make_client(tmp_path)
+        demo = Path(__file__).resolve().parent.parent / "examples" / "demo_bank_statement_1c.txt"
+        upload = client.put("/v1/inbox/kl_to_1c.txt", content=demo.read_bytes(), headers=AUTH)
+        assert upload.status_code == 200
+        files = client.get("/v1/statements", headers=AUTH).json()
+        assert {"path": "inbox/kl_to_1c.txt", "size": demo.stat().st_size} in files
+        added = client.post("/v1/calendar", json={
+            "title": "Заработная плата", "amount": -900000, "due_date": "05.10.2026",
+            "repeat": "ежемесячно"}, headers=AUTH)
+        assert added.status_code == 201 and added.json()["category"] == "Зарплата"
+        bad = client.post("/v1/calendar", json={"title": "X", "amount": 0,
+                                                "due_date": "2026-10-01"}, headers=AUTH)
+        assert bad.status_code == 422
+        result = client.post("/v1/cashflow", json={"path": "inbox/kl_to_1c.txt", "days": 60},
+                             headers=AUTH).json()
+        assert result["source_format"] == "1c" and result["opening_from_file"] is True
+        assert result["calendar"]["gap"]["date"] == "2026-10-05"
+        assert any(c["category"] == "Налоги и взносы" for c in result["categories"])
+        png = client.get(f"/v1/files/{result['chart_file']}", headers=AUTH)
+        assert png.content[:4] == b"\x89PNG"
+        payment_id = added.json()["id"]
+        assert client.delete(f"/v1/calendar/{payment_id}", headers=AUTH).status_code == 204
+        assert client.delete(f"/v1/calendar/{payment_id}", headers=AUTH).status_code == 404
+        assert llm.calls == []
+
+    def test_cashflow_errors(self, tmp_path):
+        client, _, _ = make_client(tmp_path)
+        missing = client.post("/v1/cashflow", json={"path": "inbox/none.csv"}, headers=AUTH)
+        assert missing.status_code == 404
+        outside = client.post("/v1/cashflow", json={"path": "../etc/passwd"}, headers=AUTH)
+        assert outside.status_code == 422

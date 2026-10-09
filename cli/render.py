@@ -5,7 +5,7 @@
 """Вывод в терминал: прогресс агентов, подтверждения, ответы."""
 
 import json
-from typing import Any, Callable, Dict
+from typing import Any, Callable, Dict, List, Optional
 
 from rich.console import Console
 from rich.markdown import Markdown
@@ -180,12 +180,15 @@ def print_report(console: Console, report: Any) -> None:
     console.print(f"[italic]{escape(DISCLAIMER)}[/]")
 
 
-def print_cashflow(console: Console, analysis: Dict[str, Any]) -> None:
-    """Анализ выписки: итоги, прогноз остатка, месяцы, крупные расходы."""
-    from rich.table import Table
+def money(value: float) -> str:
+    return f"{value:,.2f}".replace(",", " ")
 
-    def money(value: float) -> str:
-        return f"{value:,.2f}".replace(",", " ")
+
+def print_cashflow(
+    console: Console, analysis: Dict[str, Any], categories: Optional[List[Dict[str, Any]]] = None
+) -> None:
+    """Анализ выписки: итоги, прогноз остатка, месяцы, статьи, крупные расходы."""
+    from rich.table import Table
 
     p, f = analysis["period"], analysis["forecast"]
     console.print(f"[bold]Выписка: {p['start']} – {p['end']}[/] · операций "
@@ -212,7 +215,65 @@ def print_cashflow(console: Console, analysis: Dict[str, Any]) -> None:
     for m in analysis["monthly"]:
         months.add_row(m["month"], money(m["inflow"]), money(m["outflow"]), money(m["net"]))
     console.print(months)
+    if categories:
+        table = Table("Статья", "Поступления", "Расходы", "Операций", title="По статьям")
+        for c in categories:
+            table.add_row(escape(c["category"]), money(c["inflow"]) if c["inflow"] else "",
+                          money(c["outflow"]) if c["outflow"] else "", str(c["count"]))
+        console.print(table)
     top = Table("Назначение", "Сумма", title="Крупнейшие расходы")
     for e in analysis["top_expenses"]:
-        top.add_row(escape(e["description"]), money(e["total"]))
+        top.add_row(escape(e["description"][:80]), money(e["total"]))
     console.print(top)
+
+
+def print_planned(console: Console, payments: List[Any]) -> None:
+    """Плановые платежи платёжного календаря."""
+    from rich.table import Table
+
+    if not payments:
+        console.print("Плановых платежей нет. Добавить: prizolov calendar add \"Аренда\" "
+                      "-180000 2026-11-01 --repeat ежемесячно")
+        return
+    table = Table("#", "Платёж", "Сумма", "Дата", "Повтор", "Статья", title="Платёжный календарь")
+    for p in payments:
+        d = p.as_dict()
+        until = f" до {p.until:%d.%m.%Y}" if p.until else ""
+        table.add_row(str(p.id), escape(p.title), money(p.amount), f"{p.due_date:%d.%m.%Y}",
+                      d["repeat_name"] + until, escape(p.category))
+    console.print(table)
+
+
+def print_payment_calendar(console: Console, plan: Dict[str, Any]) -> None:
+    """Прогноз остатка по дням с плановыми платежами: разрыв, худшая точка, платежи."""
+    from rich.table import Table
+
+    console.print(
+        f"\n[bold]Платёжный календарь {plan['start']} – {plan['end']}[/]: остаток сейчас "
+        f"{money(plan['closing_balance'])}, плановые платежи за период "
+        f"{money(plan['planned_in_period'])}, фоновый поток {money(plan['background_daily'])} "
+        "в день", highlight=False,
+    )
+    table = Table("Дата", "Платежи", "Ожидаемый остаток", "Интервал 80%", "Риск минуса")
+    for day in plan["days"]:
+        if not day["planned"] and day is not plan.get("lowest"):
+            continue
+        items = "; ".join(f"{escape(i['title'])} {money(i['amount'])}" for i in day["planned"])
+        risk = day["probability_negative"] * 100
+        color = "red" if risk >= 20 else "yellow" if risk >= 5 else "green"
+        table.add_row(day["date"], items or "[dim]худшая точка[/]", money(day["expected"]),
+                      f"{money(day['low_80'])} – {money(day['high_80'])}",
+                      f"[{color}]{risk:.0f}%[/]")
+    console.print(table)
+    gap = plan.get("gap")
+    if gap:
+        console.print(
+            f"[red bold]Кассовый разрыв {gap['date']}[/] (через {gap['days_from_start']} дн.): "
+            f"не хватит до {money(gap['shortfall'])}.", highlight=False,
+        )
+        if gap["movable"]:
+            moves = ", ".join(f"{escape(m['title'])} {money(m['amount'])} ({m['date']})"
+                              for m in gap["movable"])
+            console.print(f"Можно попробовать перенести: {moves}", highlight=False)
+    else:
+        console.print("[green]Ожидаемый остаток не уходит в минус на всём горизонте.[/]")

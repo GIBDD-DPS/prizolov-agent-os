@@ -10,8 +10,10 @@ import re
 from datetime import datetime
 from typing import Any, Dict, List, Optional
 
-from ..analytics import analyze_cashflow, analyze_series, parse_cashflow_csv
+from ..analytics import analyze_cashflow, analyze_series
 from ..analytics.cashflow import parse_amount, parse_date
+from ..analytics.categories import by_category
+from ..analytics.statements import Statement, load_statement
 from ..forecasting import ForecastEngine
 from ..market import CBR_CURRENCIES, CBR_METALS, SOURCES, MarketData
 from .base import Tool, make_schema
@@ -27,33 +29,53 @@ FORECAST_NOTE = (
 )
 
 
+def read_statement(workspace: Workspace, path: str) -> Statement:
+    """Выписка из рабочей папки: 1С, CSV или Excel."""
+    return load_statement(workspace.resolve(path))
+
+
+def opening_for(statement: Statement, opening_balance: float) -> float:
+    """Остаток на начало: указанный пользователем, иначе - из выписки 1С, иначе 0."""
+    if opening_balance:
+        return opening_balance
+    return statement.opening_balance or 0.0
+
+
 def cashflow_tool(workspace: Workspace, engine: Optional[ForecastEngine] = None) -> Tool:
     def handler(path: str, opening_balance: float, horizon_days: int) -> Dict[str, Any]:
         _check_horizon(horizon_days)
-        transactions = parse_cashflow_csv(workspace.read_table(path))
-        result = analyze_cashflow(transactions, opening_balance, horizon_days)
+        statement = read_statement(workspace, path)
+        transactions = statement.transactions
+        opening = opening_for(statement, opening_balance)
+        result = analyze_cashflow(transactions, opening, horizon_days)
+        result["categories"] = by_category(transactions)
+        result["source_format"] = statement.source_format
         if engine:
             engine.cashflow_forecast(result, transactions, path)
         result["note"] = (
             "Прогноз остатка исходит из того, что средний дневной поток сохранится. "
-            "Разовые крупные платежи сильно влияют на оценку."
+            "Разовые крупные платежи сильно влияют на оценку; точнее - платёжный "
+            "календарь (payment_calendar) с плановыми платежами."
         )
+        if opening_balance == 0 and statement.opening_balance is not None:
+            result["note"] += " Остаток на начало взят из выписки 1С."
         return result
 
     return Tool(
         name="analyze_cashflow",
         description=(
-            "Анализирует выписку движения денег (CSV или Excel) в рабочей папке и прогнозирует "
-            "остаток. Колонки: дата, сумма (поступления +, расходы -), необязательно "
-            "назначение/описание. Возвращает итоги, помесячные потоки, крупнейшие расходы, "
-            "ожидаемый остаток через horizon_days с интервалами 80% и 95% и вероятность "
-            "уйти в минус."
+            "Анализирует выписку движения денег в рабочей папке и прогнозирует остаток. "
+            "Форматы: выгрузка клиент-банка для 1С (.txt, 1CClientBankExchange), CSV или "
+            "Excel с колонками дата, сумма (поступления +, расходы -), назначение. "
+            "Возвращает итоги, помесячные потоки, статьи (categories: зарплата, налоги, "
+            "аренда, поставщики...), крупнейшие расходы, ожидаемый остаток через "
+            "horizon_days с интервалами 80% и 95% и вероятность уйти в минус."
         ),
         input_schema=make_schema({
             "path": {"type": "string", "description": "Путь к CSV или Excel в рабочей папке"},
             "opening_balance": {
                 "type": "number",
-                "description": "Остаток на начало выписки; 0, если неизвестен",
+                "description": "Остаток на начало выписки; 0 - взять из выписки 1С или 0",
             },
             "horizon_days": {"type": "integer", "description": "Горизонт прогноза в днях"},
         }),
@@ -211,7 +233,9 @@ def chart_tools(
 
     def chart_cashflow(path: str, opening_balance: float, horizon_days: int) -> Dict[str, Any]:
         _check_horizon(horizon_days)
-        transactions = parse_cashflow_csv(workspace.read_table(path))
+        statement = read_statement(workspace, path)
+        transactions = statement.transactions
+        opening_balance = opening_for(statement, opening_balance)
         analysis = analyze_cashflow(transactions, opening_balance, horizon_days)
         engine.cashflow_forecast(analysis, transactions, path, record=False)
         balance = charts.cashflow_forecast_chart(
@@ -241,7 +265,7 @@ def chart_tools(
         Tool(
             name="chart_cashflow",
             description=(
-                "Рисует два графика PNG по выписке (CSV или Excel): остаток денег по дням с "
+                "Рисует два графика PNG по выписке (1С, CSV или Excel): остаток денег по дням с "
                 "прогнозом и линией нуля, и поступления/расходы по месяцам. Сохраняет в charts/."
             ),
             input_schema=make_schema({
@@ -250,5 +274,99 @@ def chart_tools(
                 "horizon_days": {"type": "integer", "description": "Горизонт прогноза в днях"},
             }),
             handler=chart_cashflow,
+        ),
+    ]
+
+
+def calendar_tools(workspace: Workspace, calendar: Any) -> List[Tool]:
+    """Платёжный календарь: плановые платежи и прогноз остатка по дням."""
+    from datetime import date as _date
+
+    from ..payment_calendar import parse_repeat, project
+
+    def payment_calendar(path: str, opening_balance: float, horizon_days: int) -> Dict[str, Any]:
+        statement = read_statement(workspace, path)
+        planned = calendar.list()
+        result = project(statement.transactions, opening_for(statement, opening_balance),
+                         planned, horizon_days)
+        # Для модели - только дни с платежами и рискованные дни, чтобы не раздувать ответ.
+        result["days"] = [d for d in result["days"]
+                          if d["planned"] or d["probability_negative"] >= 0.2]
+        result["planned_payments"] = [p.as_dict() for p in planned]
+        result["note"] = (
+            "expected - ожидаемый остаток на конец дня; low_80/high_80 - интервал 80%; "
+            "gap - первый день, когда ожидаемый остаток уходит в минус, shortfall - "
+            "сколько не хватит в худшей точке, movable - крупные плановые платежи до "
+            "разрыва, которые можно попробовать перенести."
+        )
+        return result
+
+    def plan_payment(title: str, amount: float, due_date: str, repeat: str,
+                     until: str) -> Dict[str, Any]:
+        payment = calendar.add(
+            title, amount, parse_date(due_date), parse_repeat(repeat),
+            parse_date(until) if until.strip() else None,
+        )
+        return {"added": payment.as_dict()}
+
+    def list_planned() -> Dict[str, Any]:
+        today = _date.today()
+        return {"today": today.isoformat(),
+                "planned_payments": [p.as_dict() for p in calendar.list()]}
+
+    def remove_planned(payment_id: int) -> str:
+        if not calendar.remove(payment_id):
+            raise ValueError(f"Нет планового платежа #{payment_id}")
+        return f"Плановый платёж #{payment_id} удалён"
+
+    return [
+        Tool(
+            name="payment_calendar",
+            description=(
+                "Платёжный календарь: прогноз остатка по дням с учётом плановых платежей "
+                "(аренда, зарплата, налоги, счета, ожидаемые оплаты клиентов) и фонового "
+                "потока из выписки. Находит день кассового разрыва, сколько не хватит и "
+                "какие платежи можно перенести. Выписка - 1С, CSV или Excel в рабочей папке."
+            ),
+            input_schema=make_schema({
+                "path": {"type": "string", "description": "Выписка в рабочей папке"},
+                "opening_balance": {"type": "number",
+                                    "description": "Остаток на начало выписки; 0 - из выписки"},
+                "horizon_days": {"type": "integer", "description": "На сколько дней вперёд"},
+            }),
+            handler=payment_calendar,
+            untrusted=True,
+        ),
+        Tool(
+            name="plan_payment",
+            description=(
+                "Добавляет плановый платёж или ожидаемое поступление в платёжный календарь. "
+                "amount: платёж - отрицательный, поступление - положительный. due_date - "
+                "ГГГГ-ММ-ДД или ДД.ММ.ГГГГ. repeat: разово, еженедельно, ежемесячно, "
+                "ежеквартально. until - дата окончания повторов или ''. Пользователь "
+                "подтверждает."
+            ),
+            input_schema=make_schema({
+                "title": {"type": "string"},
+                "amount": {"type": "number"},
+                "due_date": {"type": "string"},
+                "repeat": {"type": "string"},
+                "until": {"type": "string"},
+            }),
+            handler=plan_payment,
+            requires_approval=True,
+        ),
+        Tool(
+            name="list_planned_payments",
+            description="Плановые платежи и поступления в платёжном календаре.",
+            input_schema=make_schema({}),
+            handler=list_planned,
+        ),
+        Tool(
+            name="remove_planned_payment",
+            description="Удаляет плановый платёж по номеру. Пользователь подтверждает.",
+            input_schema=make_schema({"payment_id": {"type": "integer"}}),
+            handler=remove_planned,
+            requires_approval=True,
         ),
     ]

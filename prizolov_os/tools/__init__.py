@@ -26,13 +26,14 @@ from .builtin import (
     web_fetch_tool,
     web_search_tool,
 )
-from .finance import cashflow_tool, chart_tools, market_tools
+from .finance import calendar_tools, cashflow_tool, chart_tools, market_tools
 from .knowledge_tools import knowledge_tool
 from .memory_tools import memory_tools
 
 __all__ = [
     "serialized",
     "knowledge_tool",
+    "calendar_tools",
     "chart_tools",
     "memory_tools",
     "cashflow_tool",

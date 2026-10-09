@@ -76,6 +76,22 @@ class ReportRequest(BaseModel):
     history_days: int = 365
 
 
+class CashflowRequest(BaseModel):
+    path: str = Field(..., max_length=500, examples=["inbox/kl_to_1c.txt"])
+    opening_balance: Optional[float] = Field(
+        None, description="Остаток на начало; без него - из выписки 1С или 0"
+    )
+    days: int = Field(60, ge=1, le=365)
+
+
+class PlannedPaymentRequest(BaseModel):
+    title: str = Field(..., min_length=1, max_length=200)
+    amount: float = Field(..., description="Платёж - минус, поступление - плюс")
+    due_date: str = Field(..., examples=["2026-11-01", "01.11.2026"])
+    repeat: str = Field("разово", examples=["ежемесячно"])
+    until: Optional[str] = None
+
+
 class ScheduleRequest(BaseModel):
     schedule: str = Field(..., max_length=100, examples=["по будням 9:00", "0 9 * * 1-5"])
     kind: str = Field(..., pattern="^(task|report)$")
@@ -209,6 +225,33 @@ def create_app(service: ApiService, api_keys: Set[str]) -> FastAPI:
     def search(q: str = Query(..., min_length=2, max_length=500),
                limit: int = Query(6, ge=1, le=30)) -> List[Dict[str, Any]]:
         return service.search_knowledge(q, limit)
+
+    # Деньги: выписки и платёжный календарь
+
+    @app.get("/v1/statements", dependencies=v1, tags=["cashflow"])
+    def statements() -> List[Dict[str, Any]]:
+        """Файлы выписок в рабочей папке."""
+        return service.statements()
+
+    @app.post("/v1/cashflow", dependencies=v1, tags=["cashflow"])
+    def cashflow(body: CashflowRequest) -> Dict[str, Any]:
+        """Анализ выписки (1С, CSV, Excel), статьи расходов и платёжный календарь."""
+        return service.cashflow(body.path, body.opening_balance, body.days)
+
+    @app.get("/v1/calendar", dependencies=v1, tags=["cashflow"])
+    def list_planned() -> List[Dict[str, Any]]:
+        return service.list_planned()
+
+    @app.post("/v1/calendar", status_code=201, dependencies=v1, tags=["cashflow"])
+    def add_planned(body: PlannedPaymentRequest) -> Dict[str, Any]:
+        """Плановый платёж (минус) или ожидаемое поступление (плюс)."""
+        return service.add_planned(body.title, body.amount, body.due_date, body.repeat,
+                                   body.until)
+
+    @app.delete("/v1/calendar/{payment_id}", status_code=204, dependencies=v1,
+                tags=["cashflow"])
+    def remove_planned(payment_id: int) -> None:
+        service.remove_planned(payment_id)
 
     # Прогнозы, качество, расходы
 
