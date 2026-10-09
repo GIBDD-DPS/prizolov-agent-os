@@ -16,6 +16,7 @@
     prizolov accuracy              страница точности прогнозов
     prizolov portfolio мой.csv     портфель: риск, стресс-тесты, прогнозы
     prizolov tenders мебель        поиск госзакупок
+    prizolov mcp                   MCP-сервер для Claude Desktop и Cursor
     prizolov telegram              Telegram-бот
     prizolov api                   HTTP API
 """
@@ -100,6 +101,7 @@ def build_parser() -> argparse.ArgumentParser:
     tenders.add_argument("query", nargs="+", help="что ищем: «поставка офисной мебели»")
     tenders.add_argument("--max-price", type=float, default=0, help="максимальная цена, руб.")
     tenders.add_argument("--new", action="store_true", help="только ещё не показанные")
+    sub.add_parser("mcp", help="MCP-сервер для Claude Desktop, Cursor и других (stdio)")
     accuracy = sub.add_parser("accuracy", help="страница точности прогнозов (HTML)")
     accuracy.add_argument("--out", help="куда сохранить (по умолчанию workspace/reports)")
     sub.add_parser("telegram", help="запустить Telegram-бота (с расписанием)")
@@ -150,6 +152,10 @@ def main(
     if args.command == "portfolio":
         setup_logging(level=logging.DEBUG if args.verbose else logging.ERROR)
         return run_portfolio(console, args)
+    if args.command == "mcp":
+        from .mcp_server import run as run_mcp
+
+        return run_mcp()
     if args.command == "tenders":
         setup_logging(level=logging.DEBUG if args.verbose else logging.ERROR)
         return run_tenders(console, args)
