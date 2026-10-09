@@ -470,6 +470,16 @@ class ApiService:
             row["method_name"] = METHOD_NAMES.get(row["method"], row["method"])
         return {"counts": journal.counts(), "methods": board}
 
+    def accuracy(self) -> Dict[str, Any]:
+        from prizolov_os.accuracy import accuracy_data
+
+        return accuracy_data(self.kernel.store)
+
+    def accuracy_page(self) -> str:
+        from prizolov_os.accuracy import render_html
+
+        return render_html(self.accuracy())
+
     def verify_forecasts(self) -> Dict[str, Any]:
         report = self.kernel.verify_forecasts()
         return {

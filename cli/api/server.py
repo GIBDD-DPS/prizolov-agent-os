@@ -104,7 +104,9 @@ class ScheduleRequest(BaseModel):
 # --- Приложение --------------------------------------------------------------
 
 
-def create_app(service: ApiService, api_keys: Set[str]) -> FastAPI:
+def create_app(
+    service: ApiService, api_keys: Set[str], public_accuracy: bool = False
+) -> FastAPI:
     """Собирает приложение. Без ключей доступа API не создаётся."""
     keys = {k for k in api_keys if k}
     if not keys:
@@ -260,6 +262,25 @@ def create_app(service: ApiService, api_keys: Set[str]) -> FastAPI:
         """Соревнование методов: число прогнозов, процент попаданий, реальные сверки."""
         return service.forecasts()
 
+    @app.get("/v1/accuracy", dependencies=v1, tags=["forecasts"])
+    def accuracy() -> Dict[str, Any]:
+        """Сводка точности сверенных прогнозов: в целом, по классам, горизонтам, активам."""
+        return service.accuracy()
+
+    if public_accuracy:
+        @app.get("/public/accuracy", include_in_schema=False)
+        def public_accuracy_page() -> HTMLResponse:
+            """Открытая страница точности (включается PRIZOLOV_PUBLIC_ACCURACY)."""
+            return HTMLResponse(service.accuracy_page(), headers={
+                "Content-Security-Policy": "default-src 'none'; style-src 'unsafe-inline'; "
+                                           "frame-ancestors 'none'",
+                "Cache-Control": "public, max-age=300",
+            })
+
+        @app.get("/public/accuracy.json", include_in_schema=False)
+        def public_accuracy_json() -> Dict[str, Any]:
+            return service.accuracy()
+
     @app.post("/v1/forecasts/verify", dependencies=v1, tags=["forecasts"])
     def verify() -> Dict[str, Any]:
         return service.verify_forecasts()
@@ -375,7 +396,8 @@ def run(host: Optional[str] = None, port: Optional[int] = None, scheduler: bool 
     host = host or settings.api_host
     port = port or settings.api_port
     print(f"{HEADER}\nВеб-интерфейс: http://{host}:{port}  ·  API: http://{host}:{port}/docs")
-    uvicorn.run(create_app(service, keys), host=host, port=port, log_level="warning")
+    app = create_app(service, keys, public_accuracy=settings.public_accuracy)
+    uvicorn.run(app, host=host, port=port, log_level="warning")
     return 0
 
 

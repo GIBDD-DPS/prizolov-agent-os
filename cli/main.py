@@ -13,6 +13,7 @@
     prizolov report GOLD           отчёт по активу без Claude
     prizolov cashflow bank.csv     анализ выписки без Claude (1С, CSV, Excel)
     prizolov calendar              платёжный календарь
+    prizolov accuracy              страница точности прогнозов
     prizolov telegram              Telegram-бот
     prizolov api                   HTTP API
 """
@@ -86,6 +87,8 @@ def build_parser() -> argparse.ArgumentParser:
     add.add_argument("--until", help="дата окончания повторов")
     remove = calendar_sub.add_parser("remove", help="удалить плановый платёж")
     remove.add_argument("id", type=int)
+    accuracy = sub.add_parser("accuracy", help="страница точности прогнозов (HTML)")
+    accuracy.add_argument("--out", help="куда сохранить (по умолчанию workspace/reports)")
     sub.add_parser("telegram", help="запустить Telegram-бота (с расписанием)")
     sub.add_parser("scheduler", help="запустить только планировщик задач")
     api = sub.add_parser("api", help="запустить HTTP API (документация: /docs)")
@@ -131,6 +134,9 @@ def main(
     if args.command == "cashflow":
         setup_logging(level=logging.DEBUG if args.verbose else logging.ERROR)
         return run_cashflow(console, args)
+    if args.command == "accuracy":
+        setup_logging(level=logging.DEBUG if args.verbose else logging.ERROR)
+        return run_accuracy(console, args)
     if args.command == "calendar":
         setup_logging(level=logging.DEBUG if args.verbose else logging.ERROR)
         return run_calendar(console, args)
@@ -266,6 +272,25 @@ def run_cashflow(console: Console, args: argparse.Namespace) -> int:
         console.print("[dim]Добавьте плановые платежи (prizolov calendar add), и прогноз "
                       "покажет день кассового разрыва.[/]")
     console.print(f"\nГрафики: {balance}\n         {monthly}")
+    return 0
+
+
+def run_accuracy(console: Console, args: argparse.Namespace) -> int:
+    """prizolov accuracy: открытая статистика точности прогнозов в HTML."""
+    from prizolov_os.accuracy import accuracy_data, render_html
+    from prizolov_os.memory import Store
+
+    data = accuracy_data(Store(settings.db_path))
+    out = Path(args.out) if args.out else Path(settings.workspace_dir) / "reports" / "accuracy.html"
+    out.parent.mkdir(parents=True, exist_ok=True)
+    out.write_text(render_html(data), encoding="utf-8")
+    o = data["overall"]
+    if o["forecasts"]:
+        console.print(f"Сверено прогнозов: {o['forecasts']}; в интервале 80%: "
+                      f"{o['interval_80_pct']}%; направление угадано: {o['direction_pct']}%")
+    else:
+        console.print(f"Сверенных прогнозов пока нет; ожидают срока: {data['pending']}.")
+    console.print(f"Страница: {out}")
     return 0
 
 
