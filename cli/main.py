@@ -5,6 +5,8 @@
 
 """Командная строка Prizolov Agent OS.
 
+    prizolov init                  пошаговая настройка
+    prizolov doctor                проверка установки
     prizolov chat [--session ID]   интерактивный диалог
     prizolov run "задача"          одна задача
     prizolov sessions              сохранённые диалоги
@@ -43,6 +45,9 @@ def build_parser() -> argparse.ArgumentParser:
         "--self-check", choices=SELF_CHECK_MODES, help="режим самопроверки ответов"
     )
     sub = parser.add_subparsers(dest="command")
+    sub.add_parser("init", help="пошаговая настройка: ключ Claude, модель, Telegram, API")
+    doctor = sub.add_parser("doctor", help="проверить установку: ключ, источники котировок, папки")
+    doctor.add_argument("--offline", action="store_true", help="без проверок по сети")
     chat = sub.add_parser("chat", help="интерактивный диалог (по умолчанию)")
     chat.add_argument("--session", help="продолжить сохранённый диалог")
     run = sub.add_parser("run", help="выполнить одну задачу")
@@ -76,6 +81,17 @@ def main(
     console = console or Console()
     ask = ask or _make_input(console)
 
+    if args.command == "init":
+        from getpass import getpass
+
+        from .onboarding import run_init
+
+        return run_init(console, ask, getpass)
+    if args.command == "doctor":
+        from .onboarding import run_doctor
+
+        setup_logging(level=logging.DEBUG if args.verbose else logging.CRITICAL)
+        return run_doctor(console, settings, online=not args.offline)
     try:
         settings.validate()
     except ValueError as e:
@@ -102,8 +118,8 @@ def main(
 
     if args.command != "sessions" and not _has_credentials():
         console.print(
-            "[yellow]Не найден ключ Anthropic. Добавьте в .env строку "
-            "ANTHROPIC_API_KEY=... (ключ: https://console.anthropic.com/)[/]"
+            "[yellow]Не найден ключ Anthropic. Запустите prizolov init или добавьте в .env "
+            "строку ANTHROPIC_API_KEY=... (ключ: https://console.anthropic.com/)[/]"
         )
 
     kernel = kernel_factory(

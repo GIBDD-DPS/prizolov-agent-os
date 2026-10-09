@@ -41,11 +41,10 @@ class Settings:
         api_host: Адрес, на котором слушает HTTP API
         api_port: Порт HTTP API
         api_workers: Сколько задач API выполнять одновременно
-        log_level: Уровень логирования (DEBUG, INFO, WARNING, ERROR)
+        log_level: Уровень логов в файле PRIZOLOV_LOG_FILE (DEBUG, INFO, WARNING, ERROR)
         log_file: Путь к файлу логов (опционально)
-        security_level: Уровень безопасности (low, medium, high)
         max_retries: Максимальное количество попыток
-        timeout: Таймаут запросов в секундах
+        timeout: Таймаут запросов к источникам котировок в секундах
     """
     api_key: Optional[str] = None
     model: str = "claude-sonnet-5-5"
@@ -71,7 +70,6 @@ class Settings:
     api_workers: int = 2
     log_level: str = "INFO"
     log_file: Optional[str] = None
-    security_level: str = "high"
     max_retries: int = 3
     timeout: int = 30
 
@@ -116,7 +114,6 @@ class Settings:
             api_workers=int(os.getenv("PRIZOLOV_API_WORKERS", "2")),
             log_level=os.getenv("PRIZOLOV_LOG_LEVEL", "INFO"),
             log_file=os.getenv("PRIZOLOV_LOG_FILE"),
-            security_level=os.getenv("PRIZOLOV_SECURITY_LEVEL", "high"),
             max_retries=int(os.getenv("PRIZOLOV_MAX_RETRIES", "3")),
             timeout=int(os.getenv("PRIZOLOV_TIMEOUT", "30")),
         )
@@ -140,12 +137,6 @@ class Settings:
         Raises:
             ValueError: Если настройки некорректны
         """
-        if self.security_level not in ["low", "medium", "high"]:
-            raise ValueError(
-                f"Invalid security_level: {self.security_level}. "
-                "Must be 'low', 'medium', or 'high'"
-            )
-
         if self.self_check not in ["complex", "always", "off"]:
             raise ValueError(
                 f"Invalid self_check: {self.self_check}. Must be 'complex', 'always', or 'off'"

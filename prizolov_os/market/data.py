@@ -50,7 +50,11 @@ class PriceSeries:
     unit: str = ""
 
 
-def http_get(url: str, timeout: float = 20.0) -> bytes:
+def http_get(url: str, timeout: Optional[float] = None) -> bytes:
+    if timeout is None:
+        from ..config import settings
+
+        timeout = settings.timeout
     request = urllib.request.Request(url, headers={"User-Agent": USER_AGENT})
     try:
         with urllib.request.urlopen(request, timeout=timeout) as response:
