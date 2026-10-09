@@ -1,0 +1,639 @@
+<!-- Prizolov Agent OS 0.3.0 | Author: Dm.Andreyanov | Brand: Prizolov Lab | © 2026
+SPDX-FileCopyrightText: 2026 Dm.Andreyanov / Prizolov Lab
+SPDX-License-Identifier: Apache-2.0 -->
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="author" content="Dm.Andreyanov / Prizolov Lab">
+<meta name="generator" content="Prizolov Agent OS">
+<title>Prizolov Agent OS</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%232f5bea'/%3E%3Ctext x='16' y='22' font-family='Arial' font-size='17' font-weight='700' fill='white' text-anchor='middle'%3EP%3C/text%3E%3C/svg%3E">
+<style>
+:root {
+  --bg: #f6f7f9; --panel: #ffffff; --text: #1d2330; --muted: #667085; --line: #e3e6ec;
+  --accent: #2f5bea; --accent-text: #ffffff; --ok: #12805c; --warn: #b54708; --bad: #c4320a;
+  --user: #eef2ff; --code: #f2f4f7; --shadow: 0 1px 2px rgba(16, 24, 40, .06);
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #0f1218; --panel: #171b23; --text: #e6e8ec; --muted: #98a2b3; --line: #2a303b;
+    --accent: #6d8cff; --accent-text: #0f1218; --ok: #47cd89; --warn: #fdb022; --bad: #f97066;
+    --user: #1f2740; --code: #202532; --shadow: none;
+  }
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; background: var(--bg); color: var(--text);
+  font: 15px/1.5 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+header { display: flex; align-items: center; gap: 16px; padding: 12px 20px; background: var(--panel);
+  border-bottom: 1px solid var(--line); position: sticky; top: 0; z-index: 2; flex-wrap: wrap; }
+header h1 { font-size: 17px; margin: 0; white-space: nowrap; }
+header h1 small { color: var(--muted); font-weight: 400; }
+nav { display: flex; gap: 4px; flex-wrap: wrap; }
+nav button { background: none; border: 0; padding: 6px 12px; border-radius: 8px; color: var(--muted);
+  font: inherit; cursor: pointer; }
+nav button.active { background: var(--user); color: var(--text); font-weight: 600; }
+#logout { margin-left: auto; }
+main { max-width: 1000px; margin: 0 auto; padding: 20px 16px 120px; }
+section { display: none; }
+section.active { display: block; }
+.card { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 16px;
+  margin-bottom: 16px; box-shadow: var(--shadow); }
+h2 { font-size: 18px; margin: 0 0 12px; }
+h3 { font-size: 15px; margin: 16px 0 8px; }
+label { display: block; color: var(--muted); font-size: 13px; margin-bottom: 4px; }
+input, select, textarea { width: 100%; padding: 9px 11px; border: 1px solid var(--line);
+  border-radius: 8px; background: var(--bg); color: var(--text); font: inherit; }
+textarea { resize: vertical; min-height: 48px; }
+button.primary, button.secondary, button.danger { padding: 9px 16px; border-radius: 8px; border: 0;
+  font: inherit; font-weight: 600; cursor: pointer; }
+button.primary { background: var(--accent); color: var(--accent-text); }
+button.secondary { background: var(--user); color: var(--text); }
+button.danger { background: none; color: var(--bad); border: 1px solid var(--line); }
+button:disabled { opacity: .5; cursor: default; }
+.row { display: flex; gap: 12px; flex-wrap: wrap; align-items: flex-end; }
+.row > * { flex: 1 1 160px; }
+.row > .narrow { flex: 0 0 auto; }
+.muted { color: var(--muted); }
+.small { font-size: 13px; }
+.ok { color: var(--ok); } .warn { color: var(--warn); } .bad { color: var(--bad); }
+table { border-collapse: collapse; width: 100%; font-size: 14px; }
+th, td { text-align: left; padding: 7px 8px; border-bottom: 1px solid var(--line); vertical-align: top; }
+th { color: var(--muted); font-weight: 500; white-space: nowrap; }
+.table-wrap { overflow-x: auto; }
+img.chart { max-width: 100%; border-radius: 8px; border: 1px solid var(--line); margin-top: 8px;
+  background: #fff; }
+#login { max-width: 420px; margin: 12vh auto; }
+#messages { display: flex; flex-direction: column; gap: 12px; }
+.msg { padding: 12px 14px; border-radius: 12px; border: 1px solid var(--line); background: var(--panel);
+  overflow-wrap: anywhere; }
+.msg.user { background: var(--user); align-self: flex-end; max-width: 85%; white-space: pre-wrap; }
+.msg .meta { color: var(--muted); font-size: 12px; margin-top: 8px; }
+.progress { color: var(--muted); font-size: 13px; white-space: pre-wrap; margin: 0; }
+.approval { border: 1px solid var(--warn); border-radius: 10px; padding: 10px; margin-top: 8px; }
+.approval pre { white-space: pre-wrap; margin: 6px 0; }
+#composer { position: fixed; left: 0; right: 0; bottom: 0; background: var(--panel);
+  border-top: 1px solid var(--line); padding: 12px 16px; display: none; }
+#composer.active { display: block; }
+#composer form { max-width: 1000px; margin: 0 auto; display: flex; gap: 10px; align-items: flex-end; }
+.md p { margin: 0 0 10px; } .md p:last-child { margin-bottom: 0; }
+.md pre { background: var(--code); padding: 10px; border-radius: 8px; overflow-x: auto; }
+.md code { background: var(--code); padding: 1px 4px; border-radius: 4px; font-size: 13px; }
+.md pre code { background: none; padding: 0; }
+.md ul, .md ol { margin: 0 0 10px; padding-left: 22px; }
+.md h1, .md h2, .md h3, .md h4 { font-size: 16px; margin: 14px 0 6px; }
+.md a { color: var(--accent); }
+.examples { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 10px; }
+.examples button { background: var(--panel); border: 1px solid var(--line); border-radius: 999px;
+  padding: 6px 12px; color: var(--text); font: inherit; font-size: 13px; cursor: pointer; }
+.stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 12px; }
+.stat { background: var(--bg); border-radius: 10px; padding: 12px; }
+.stat b { display: block; font-size: 20px; }
+footer { color: var(--muted); font-size: 12px; text-align: center; padding: 16px; }
+</style>
+</head>
+<body>
+<div id="login" class="card" hidden>
+  <h2>Prizolov Agent OS</h2>
+  <p class="muted small">Введите ключ доступа из PRIZOLOV_API_KEYS (создаётся командой
+    <code>prizolov init</code>).</p>
+  <form id="login-form">
+    <label for="key">Ключ API</label>
+    <input id="key" type="password" autocomplete="current-password" required>
+    <p><label style="display:inline"><input id="remember" type="checkbox" style="width:auto">
+      запомнить на этом устройстве</label></p>
+    <button class="primary" type="submit">Войти</button>
+    <p id="login-error" class="bad small"></p>
+  </form>
+</div>
+
+<div id="app" hidden>
+<header>
+  <h1>Prizolov Agent OS <small id="version"></small></h1>
+  <nav>
+    <button data-tab="chat" class="active">Чат</button>
+    <button data-tab="report">Отчёт по активу</button>
+    <button data-tab="forecasts">Точность прогнозов</button>
+    <button data-tab="schedule">Расписание</button>
+    <button data-tab="knowledge">Документы</button>
+    <button data-tab="status">Расходы</button>
+  </nav>
+  <button id="logout" class="secondary">Выйти</button>
+</header>
+<main>
+  <section id="tab-chat" class="active">
+    <div id="welcome" class="card">
+      <h2>Команда ИИ-агентов</h2>
+      <p class="muted">Директор распределит задачу между специалистами: исследователь, писатель,
+        финансовый и рыночный аналитики. Ход работы виден по шагам.</p>
+      <div class="examples">
+        <button>Спрогнозируй курс доллара ЦБ на 30 дней</button>
+        <button>Сравни золото, серебро и биткоин за год и дай прогноз на месяц</button>
+        <button>Найди свежие новости о ставке ЦБ и сделай краткую сводку</button>
+        <button>Что ты помнишь обо мне?</button>
+      </div>
+    </div>
+    <div id="messages"></div>
+  </section>
+
+  <section id="tab-report">
+    <div class="card">
+      <h2>Отчёт по активу</h2>
+      <p class="muted small">Прогнозы без Claude: метод выбирается по точности на истории,
+        прогнозы записываются в журнал и потом сверяются с фактом.</p>
+      <form id="report-form" class="row">
+        <div><label for="r-symbol">Тикер</label>
+          <input id="r-symbol" value="GOLD" list="symbols" required></div>
+        <datalist id="symbols">
+          <option value="GOLD">золото, ЦБ, руб./г</option><option value="SILVER">серебро, ЦБ</option>
+          <option value="USD">доллар, ЦБ</option><option value="EUR">евро, ЦБ</option>
+          <option value="CNY">юань, ЦБ</option><option value="GC=F">золото, COMEX</option>
+          <option value="BTC-USD">биткоин</option><option value="SBER">Сбербанк, Мосбиржа</option>
+        </datalist>
+        <div><label for="r-source">Источник</label>
+          <select id="r-source"><option value="">по тикеру</option><option value="cbr">ЦБ РФ</option>
+            <option value="moex">Мосбиржа</option><option value="yahoo">Yahoo Finance</option></select></div>
+        <div><label for="r-horizons">Горизонты, дней</label>
+          <input id="r-horizons" value="1,7,15,30"></div>
+        <div class="narrow"><button class="primary" type="submit">Построить</button></div>
+      </form>
+    </div>
+    <div id="report-out"></div>
+  </section>
+
+  <section id="tab-forecasts">
+    <div class="card">
+      <div class="row"><h2 style="flex:1">Соревнование методов</h2>
+        <div class="narrow"><button id="verify" class="secondary">Сверить с фактом</button></div></div>
+      <p class="muted small">«Проверено» - на скольких прогнозах по истории проверен метод;
+        «В 80%» - доля фактов внутри 80%-го интервала (цель - около 80%); «Направление» -
+        как часто угадан рост или падение; «Сверено» - реальные прогнозы, срок которых наступил.</p>
+      <div id="forecasts-out"></div>
+    </div>
+  </section>
+
+  <section id="tab-schedule">
+    <div class="card">
+      <h2>Новая задача по расписанию</h2>
+      <form id="schedule-form">
+        <div class="row">
+          <div><label for="s-when">Когда</label>
+            <input id="s-when" placeholder="по будням 9:00" required></div>
+          <div><label for="s-kind">Что делать</label>
+            <select id="s-kind"><option value="report">отчёт по активу (бесплатно)</option>
+              <option value="task">поручение агентам</option></select></div>
+        </div>
+        <div class="row" id="s-report-fields" style="margin-top:12px">
+          <div><label for="s-symbol">Тикер</label><input id="s-symbol" value="GOLD"></div>
+          <div><label for="s-horizons">Горизонты</label><input id="s-horizons" value="1,7,15,30"></div>
+        </div>
+        <div id="s-task-fields" hidden style="margin-top:12px">
+          <label for="s-task">Задача</label>
+          <textarea id="s-task" placeholder="Обзор рынка металлов за неделю"></textarea>
+        </div>
+        <p class="muted small">Например: «ежедневно 09:00», «по понедельникам 10:00», «каждые 6
+          часов» или cron. Задачи выполняет процесс с планировщиком (prizolov api --scheduler или
+          Telegram-бот).</p>
+        <button class="primary" type="submit">Создать</button>
+      </form>
+    </div>
+    <div class="card"><h2>Задачи</h2><div id="schedule-out"></div></div>
+  </section>
+
+  <section id="tab-knowledge">
+    <div class="card">
+      <h2>Документы</h2>
+      <p class="muted small">PDF, Word, Excel, CSV, TXT, MD до 20 МБ. Документы попадают в базу
+        знаний, и агенты ищут в них ответы.</p>
+      <div class="row">
+        <div><input id="upload" type="file" accept=".pdf,.docx,.xlsx,.xlsm,.csv,.txt,.md"></div>
+        <div class="narrow"><button id="upload-btn" class="primary">Загрузить</button></div>
+      </div>
+      <p id="upload-out" class="small"></p>
+    </div>
+    <div class="card">
+      <form id="search-form" class="row">
+        <div><input id="search-q" placeholder="Поиск по документам" minlength="2" required></div>
+        <div class="narrow"><button class="secondary" type="submit">Найти</button></div>
+      </form>
+      <div id="search-out"></div>
+    </div>
+  </section>
+
+  <section id="tab-status">
+    <div class="card"><h2>Расходы на Claude</h2><div id="budget-out"></div></div>
+    <div class="card"><h2>Система</h2><div id="status-out"></div></div>
+  </section>
+</main>
+<div id="composer" class="active">
+  <form id="chat-form">
+    <textarea id="chat-input" rows="2" placeholder="Задача для агентов… (Enter - отправить, Shift+Enter - новая строка)" required></textarea>
+    <button class="secondary" type="button" id="new-chat" title="Начать новый диалог">Новый</button>
+    <button class="primary" type="submit" id="send">Отправить</button>
+  </form>
+</div>
+<footer id="footer"></footer>
+</div>
+
+<script>
+"use strict";
+// Prizolov Agent OS 0.3.0 | Author: Dm.Andreyanov | Brand: Prizolov Lab | © 2026
+const $ = (s, root = document) => root.querySelector(s);
+const store = {
+  get key() { return sessionStorage.getItem("pzl-key") || localStorage.getItem("pzl-key") || ""; },
+  set key(v) { sessionStorage.setItem("pzl-key", v); },
+  remember(v) { localStorage.setItem("pzl-key", v); },
+  clear() { sessionStorage.removeItem("pzl-key"); localStorage.removeItem("pzl-key"); },
+  get session() {
+    let id = localStorage.getItem("pzl-session");
+    if (!id) { id = "web-" + crypto.getRandomValues(new Uint32Array(2)).join("").slice(0, 12);
+      localStorage.setItem("pzl-session", id); }
+    return id;
+  },
+  newSession() { localStorage.removeItem("pzl-session"); },
+};
+
+class AuthError extends Error {}
+
+async function api(path, options = {}) {
+  const headers = Object.assign({ "Authorization": "Bearer " + store.key }, options.headers || {});
+  if (options.json !== undefined) {
+    headers["Content-Type"] = "application/json";
+    options.body = JSON.stringify(options.json);
+  }
+  const response = await fetch(path, Object.assign({}, options, { headers }));
+  if (response.status === 401) { showLogin("Ключ не подошёл"); throw new AuthError(); }
+  if (!response.ok) {
+    let detail = response.statusText;
+    try { const data = await response.json(); detail = typeof data.detail === "string"
+      ? data.detail : JSON.stringify(data.detail); } catch (e) { /* не JSON */ }
+    throw new Error(detail);
+  }
+  if (response.status === 204) return null;
+  const type = response.headers.get("content-type") || "";
+  return type.includes("json") ? response.json() : response.blob();
+}
+
+async function fileUrl(path) {
+  const blob = await api("/v1/files/" + path.split("/").map(encodeURIComponent).join("/"));
+  return URL.createObjectURL(blob);
+}
+
+// --- Разметка ответов (Markdown) - экранирование до любых преобразований ---
+function esc(text) {
+  return String(text ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;",
+    '"': "&quot;", "'": "&#39;" })[c]);
+}
+function inline(text) {
+  return text
+    .replace(/`([^`]+)`/g, "<code>$1</code>")
+    .replace(/\*\*([^*]+)\*\*/g, "<b>$1</b>")
+    .replace(/(^|[\s(])\*([^*\s][^*]*)\*/g, "$1<i>$2</i>")
+    .replace(/\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)/g,
+      '<a href="$2" target="_blank" rel="noopener noreferrer">$1</a>');
+}
+function markdown(source) {
+  const lines = esc(source).split("\n");
+  const out = [];
+  let i = 0;
+  while (i < lines.length) {
+    const line = lines[i];
+    if (line.startsWith("```")) {
+      const code = [];
+      i++;
+      while (i < lines.length && !lines[i].startsWith("```")) code.push(lines[i++]);
+      i++;
+      out.push("<pre><code>" + code.join("\n") + "</code></pre>");
+      continue;
+    }
+    if (/^\s*\|.*\|\s*$/.test(line)) {
+      const rows = [];
+      while (i < lines.length && /^\s*\|.*\|\s*$/.test(lines[i])) rows.push(lines[i++]);
+      const cells = r => r.trim().slice(1, -1).split("|").map(c => inline(c.trim()));
+      const body = rows.filter(r => !/^\s*\|[\s:|-]+\|\s*$/.test(r));
+      const head = cells(body.shift() || "");
+      out.push('<div class="table-wrap"><table><tr>' + head.map(c => "<th>" + c + "</th>").join("")
+        + "</tr>" + body.map(r => "<tr>" + cells(r).map(c => "<td>" + c + "</td>").join("")
+        + "</tr>").join("") + "</table></div>");
+      continue;
+    }
+    const heading = line.match(/^(#{1,4})\s+(.*)$/);
+    if (heading) { out.push(`<h${heading[1].length}>${inline(heading[2])}</h${heading[1].length}>`);
+      i++; continue; }
+    if (/^\s*([-*]|\d+\.)\s+/.test(line)) {
+      const ordered = /^\s*\d+\./.test(line);
+      const items = [];
+      while (i < lines.length && /^\s*([-*]|\d+\.)\s+/.test(lines[i]))
+        items.push("<li>" + inline(lines[i++].replace(/^\s*([-*]|\d+\.)\s+/, "")) + "</li>");
+      out.push((ordered ? "<ol>" : "<ul>") + items.join("") + (ordered ? "</ol>" : "</ul>"));
+      continue;
+    }
+    if (!line.trim()) { i++; continue; }
+    const para = [];
+    while (i < lines.length && lines[i].trim() && !/^(```|#{1,4}\s|\s*\||\s*([-*]|\d+\.)\s)/.test(lines[i]))
+      para.push(inline(lines[i++]));
+    if (!para.length) para.push(inline(lines[i++]));
+    out.push("<p>" + para.join("<br>") + "</p>");
+  }
+  return out.join("");
+}
+const num = v => v == null ? "—" : Number(v).toLocaleString("ru-RU", { maximumFractionDigits: 2 });
+const pct = v => v == null ? "—" : num(v) + "%";
+const usd = v => "$" + Number(v || 0).toFixed(Number(v) < 1 ? 4 : 2);
+
+// --- Вход и вкладки ---
+function showLogin(message = "") {
+  $("#app").hidden = true; $("#login").hidden = false;
+  $("#login-error").textContent = message; $("#key").focus();
+}
+async function start() {
+  try {
+    const health = await fetch("/health").then(r => r.json());
+    $("#version").textContent = health.version;
+    $("#footer").textContent = `${health.product} ${health.version} · © 2026 ${health.author} / `
+      + `${health.brand} · prizolov.ru · ID ${health.project_id}`;
+  } catch (e) { /* сервер недоступен - покажет первый запрос */ }
+  if (!store.key) return showLogin();
+  try { await api("/v1/status"); } catch (e) { return; }
+  $("#login").hidden = true; $("#app").hidden = false; $("#chat-input").focus();
+}
+$("#login-form").addEventListener("submit", e => {
+  e.preventDefault();
+  const key = $("#key").value.trim();
+  store.key = key;
+  if ($("#remember").checked) store.remember(key);
+  start();
+});
+$("#logout").addEventListener("click", () => { store.clear(); showLogin(); });
+const loaders = { forecasts: loadForecasts, schedule: loadSchedule, status: loadStatus };
+document.querySelectorAll("nav button").forEach(button => button.addEventListener("click", () => {
+  document.querySelectorAll("nav button").forEach(b => b.classList.toggle("active", b === button));
+  document.querySelectorAll("main section").forEach(s =>
+    s.classList.toggle("active", s.id === "tab-" + button.dataset.tab));
+  $("#composer").classList.toggle("active", button.dataset.tab === "chat");
+  const load = loaders[button.dataset.tab];
+  if (load) load().catch(showError);
+}));
+function showError(error) {
+  if (error instanceof AuthError) return;
+  alert(error.message || String(error));
+}
+
+// --- Чат ---
+const messages = $("#messages");
+function addMessage(cls, html) {
+  const div = document.createElement("div");
+  div.className = "msg " + cls;
+  div.innerHTML = html;
+  messages.appendChild(div);
+  div.scrollIntoView({ behavior: "smooth", block: "end" });
+  return div;
+}
+document.querySelectorAll(".examples button").forEach(b => b.addEventListener("click", () => {
+  $("#chat-input").value = b.textContent; $("#chat-input").focus();
+}));
+$("#chat-input").addEventListener("keydown", e => {
+  if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); $("#chat-form").requestSubmit(); }
+});
+$("#new-chat").addEventListener("click", () => {
+  store.newSession(); messages.innerHTML = ""; $("#welcome").hidden = false;
+});
+$("#chat-form").addEventListener("submit", async e => {
+  e.preventDefault();
+  const text = $("#chat-input").value.trim();
+  if (!text) return;
+  $("#chat-input").value = "";
+  $("#welcome").hidden = true;
+  addMessage("user", esc(text));
+  const box = addMessage("agent", '<pre class="progress">⏳ Думаю…</pre>');
+  $("#send").disabled = true;
+  try {
+    const job = await api("/v1/tasks", { method: "POST", json: { message: text, session_id: store.session } });
+    await follow(job.id, box);
+  } catch (error) {
+    if (!(error instanceof AuthError)) box.innerHTML = '<span class="bad">' + esc(error.message) + "</span>";
+  } finally { $("#send").disabled = false; }
+});
+
+async function follow(jobId, box) {
+  const shown = new Set();
+  for (;;) {
+    const job = await api("/v1/tasks/" + jobId);
+    if (job.status === "done" || job.status === "error") return finish(job, box);
+    let html = '<pre class="progress">⏳ ' + esc(job.progress.slice(-6).join("\n") || "Думаю…") + "</pre>";
+    if (job.status === "waiting_approval") {
+      const approvals = (await api("/v1/approvals")).filter(a => a.job_id === jobId);
+      html += approvals.map(a => `<div class="approval" data-id="${esc(a.id)}"><b>Агент просит
+        разрешения</b><pre>${esc(a.description)}</pre><button class="primary" data-allow="1">Разрешить
+        </button> <button class="danger" data-allow="0">Отклонить</button></div>`).join("");
+      approvals.forEach(a => shown.add(a.id));
+    }
+    box.innerHTML = html;
+    box.querySelectorAll(".approval button").forEach(b => b.addEventListener("click", async () => {
+      const id = b.closest(".approval").dataset.id;
+      b.closest(".approval").innerHTML = "Ответ отправлен…";
+      await api("/v1/approvals/" + encodeURIComponent(id), { method: "POST",
+        json: { allow: b.dataset.allow === "1" } }).catch(showError);
+    }));
+    await new Promise(r => setTimeout(r, job.status === "waiting_approval" ? 2500 : 1200));
+  }
+}
+
+async function finish(job, box) {
+  if (job.status === "error") {
+    box.innerHTML = '<span class="bad">⚠ ' + esc(job.error) + "</span>";
+    return;
+  }
+  const u = job.usage || {};
+  box.innerHTML = '<div class="md">' + markdown(job.text || "(пустой ответ)") + "</div>"
+    + `<div class="meta">вход ${num(u.input_tokens)} · выход ${num(u.output_tokens)} · ${usd(u.cost_usd)}
+      · <a href="#" class="rate" data-good="1">👍</a> <a href="#" class="rate" data-good="0">👎</a></div>`;
+  for (const path of job.files || []) {
+    try {
+      const img = document.createElement("img");
+      img.className = "chart"; img.alt = path; img.src = await fileUrl(path);
+      box.appendChild(img);
+    } catch (e) { /* файл мог быть удалён */ }
+  }
+  box.querySelectorAll(".rate").forEach(a => a.addEventListener("click", async ev => {
+    ev.preventDefault();
+    const positive = a.dataset.good === "1";
+    const comment = positive ? "" : prompt("Что не так? Замечание станет уроком для агентов:") || "";
+    if (!positive && !comment) return;
+    try {
+      const result = await api(`/v1/sessions/${encodeURIComponent(job.session_id)}/feedback`,
+        { method: "POST", json: { positive, comment } });
+      a.parentElement.append(result.lesson ? " · урок: " + result.lesson : " · спасибо!");
+    } catch (error) { showError(error); }
+  }));
+  box.scrollIntoView({ behavior: "smooth", block: "end" });
+}
+
+// --- Отчёт ---
+$("#report-form").addEventListener("submit", async e => {
+  e.preventDefault();
+  const out = $("#report-out");
+  out.innerHTML = '<div class="card muted">Загружаю котировки и проверяю методы на истории…</div>';
+  try {
+    const horizons = $("#r-horizons").value.split(",").map(s => parseInt(s, 10)).filter(n => n > 0);
+    const r = await api("/v1/reports", { method: "POST", json: {
+      symbol: $("#r-symbol").value.trim(), source: $("#r-source").value || null, horizons } });
+    const s = r.summary, ind = s.indicators || {};
+    const rows = r.forecasts.map(f => {
+      const rel = f.reliability || {};
+      const change = (f.median / r.last_price - 1) * 100;
+      return `<tr><td>${f.horizon_days} дн.</td><td><b>${num(f.median)}</b></td>
+        <td class="${change >= 0 ? "ok" : "bad"}">${change >= 0 ? "+" : ""}${num(change)}%</td>
+        <td>${num(f.low_80)} – ${num(f.high_80)}</td><td>${num(f.low_95)} – ${num(f.high_95)}</td>
+        <td>${pct(f.probability_up * 100)}</td><td>${esc(f.method_name)}</td>
+        <td>${num(rel.backtest_forecasts || 0)}</td><td>${pct(rel.backtest_interval_80_pass_pct)}</td>
+        <td>${pct(rel.backtest_direction_hit_pct)}</td></tr>`;
+    }).join("");
+    out.innerHTML = `<div class="card"><h2>${esc(r.symbol)} <span class="muted">(${esc(r.source)})</span></h2>
+      <div class="stats">
+        <div class="stat"><span class="muted small">Последняя цена</span><b>${num(r.last_price)}</b>
+          <span class="muted small">${esc(s.last_date)} ${esc(r.unit || r.currency)}</span></div>
+        <div class="stat"><span class="muted small">За период</span><b>${num(s.change_pct)}%</b></div>
+        <div class="stat"><span class="muted small">Волатильность, год</span><b>${num(s.volatility_annual_pct)}%</b></div>
+        <div class="stat"><span class="muted small">RSI(14)</span><b>${num(ind.rsi_14)}</b></div>
+      </div>
+      <h3>Прогнозы</h3><div class="table-wrap"><table><tr><th>Горизонт</th><th>Медиана</th><th>Изм.</th>
+        <th>80%</th><th>95%</th><th>Рост</th><th>Метод</th><th>Проверено</th><th>В 80%</th>
+        <th>Направление</th></tr>${rows}</table></div>
+      <div id="report-chart"></div>
+      <p class="muted small">Статистическая оценка по истории цен, не инвестиционная рекомендация.
+        <a href="#" id="report-md">Скачать отчёт (Markdown)</a></p></div>`;
+    if (r.chart_file) {
+      const img = document.createElement("img");
+      img.className = "chart"; img.alt = "График"; img.src = await fileUrl(r.chart_file);
+      $("#report-chart").appendChild(img);
+    }
+    $("#report-md").addEventListener("click", async ev => {
+      ev.preventDefault();
+      const a = document.createElement("a");
+      a.href = await fileUrl(r.report_file); a.download = r.report_file.split("/").pop(); a.click();
+    });
+  } catch (error) {
+    if (!(error instanceof AuthError)) out.innerHTML = '<div class="card bad">' + esc(error.message) + "</div>";
+  }
+});
+
+// --- Точность прогнозов ---
+async function loadForecasts() {
+  const data = await api("/v1/forecasts");
+  const c = data.counts || {};
+  const rows = data.methods.map(m => `<tr><td>${esc(m.asset_class_name)}</td><td>${esc(m.bucket)}</td>
+    <td>${esc(m.method_name)}</td><td>${num(m.backtest.forecasts)}</td><td>${pct(m.backtest.interval_80_pass_pct)}</td>
+    <td>${pct(m.backtest.direction_hit_pct)}</td><td>${num(m.live.forecasts)}</td>
+    <td>${pct(m.live.interval_80_pass_pct)}</td><td>${pct(m.live.mean_abs_error_pct)}</td></tr>`).join("");
+  $("#forecasts-out").innerHTML = `<div class="stats">
+      <div class="stat"><span class="muted small">Ждут срока</span><b>${num(c.pending || 0)}</b></div>
+      <div class="stat"><span class="muted small">Сверено</span><b>${num(c.verified || 0)}</b></div>
+      <div class="stat"><span class="muted small">Несверяемых</span><b>${num(c.unverifiable || 0)}</b></div>
+    </div>` + (rows ? `<h3>Методы</h3><div class="table-wrap"><table><tr><th>Класс</th><th>Горизонт</th>
+      <th>Метод</th><th>Проверено</th><th>В 80%</th><th>Направление</th><th>Сверено</th>
+      <th>В 80% (факт)</th><th>Ошибка</th></tr>${rows}</table></div>`
+      : '<p class="muted">Пока нет прогнозов. Постройте отчёт или спросите агентов.</p>');
+}
+$("#verify").addEventListener("click", async () => {
+  try {
+    const r = await api("/v1/forecasts/verify", { method: "POST" });
+    alert(`Сверено: ${r.verified.length}` + (r.errors.length ? "\nОшибки: " + r.errors.join("; ") : ""));
+    await loadForecasts();
+  } catch (error) { showError(error); }
+});
+
+// --- Расписание ---
+$("#s-kind").addEventListener("change", () => {
+  const report = $("#s-kind").value === "report";
+  $("#s-report-fields").hidden = !report; $("#s-task-fields").hidden = report;
+});
+$("#schedule-form").addEventListener("submit", async e => {
+  e.preventDefault();
+  try {
+    await api("/v1/schedules", { method: "POST", json: {
+      schedule: $("#s-when").value, kind: $("#s-kind").value, task: $("#s-task").value,
+      symbol: $("#s-symbol").value,
+      horizons: $("#s-horizons").value.split(",").map(s => parseInt(s, 10)).filter(n => n > 0) } });
+    $("#s-when").value = "";
+    await loadSchedule();
+  } catch (error) { showError(error); }
+});
+async function loadSchedule() {
+  const tasks = await api("/v1/schedules");
+  const out = $("#schedule-out");
+  if (!tasks.length) { out.innerHTML = '<p class="muted">Задач нет.</p>'; return; }
+  out.innerHTML = `<div class="table-wrap"><table><tr><th>#</th><th>Задача</th><th>Когда</th>
+    <th>Следующий запуск</th><th>Последний</th><th></th></tr>` + tasks.map(t => `<tr>
+    <td>${t.id}</td><td>${esc(t.title)}</td><td>${esc(t.description)}</td>
+    <td>${t.enabled ? new Date(t.next_run).toLocaleString("ru-RU") : '<span class="warn">на паузе</span>'}</td>
+    <td>${t.last_run ? esc(t.last_status) : "—"}</td>
+    <td style="white-space:nowrap"><button class="secondary" data-act="run" data-id="${t.id}">Запустить</button>
+      <button class="secondary" data-act="${t.enabled ? "pause" : "resume"}" data-id="${t.id}">
+        ${t.enabled ? "Пауза" : "Включить"}</button>
+      ${t.builtin ? "" : `<button class="danger" data-act="delete" data-id="${t.id}">Удалить</button>`}</td>
+    </tr>`).join("") + "</table></div>";
+  out.querySelectorAll("button[data-act]").forEach(b => b.addEventListener("click", async () => {
+    const id = b.dataset.id, act = b.dataset.act;
+    try {
+      if (act === "delete") {
+        if (!confirm("Удалить задачу #" + id + "?")) return;
+        await api("/v1/schedules/" + id, { method: "DELETE" });
+      } else if (act === "run") {
+        const job = await api(`/v1/schedules/${id}/run`, { method: "POST" });
+        alert("Задача запущена. Результат появится в отчётах (" + job.id + ").");
+      } else {
+        await api(`/v1/schedules/${id}/${act}`, { method: "POST" });
+      }
+      await loadSchedule();
+    } catch (error) { showError(error); }
+  }));
+}
+
+// --- Документы ---
+$("#upload-btn").addEventListener("click", async () => {
+  const file = $("#upload").files[0];
+  if (!file) return;
+  $("#upload-out").textContent = "Загружаю…";
+  try {
+    const r = await api("/v1/inbox/" + encodeURIComponent(file.name), { method: "PUT", body: file });
+    $("#upload-out").textContent = "Сохранено: " + r.path + ". Документ добавлен в базу знаний.";
+  } catch (error) {
+    if (!(error instanceof AuthError)) $("#upload-out").textContent = error.message;
+  }
+});
+$("#search-form").addEventListener("submit", async e => {
+  e.preventDefault();
+  try {
+    const hits = await api("/v1/knowledge/search?q=" + encodeURIComponent($("#search-q").value));
+    $("#search-out").innerHTML = hits.length ? hits.map(h => `<h3>${esc(h.source)}</h3>
+      <p class="small">${esc(h.text)}</p>`).join("") : '<p class="muted">Ничего не найдено.</p>';
+  } catch (error) { showError(error); }
+});
+
+// --- Расходы и система ---
+async function loadStatus() {
+  const [b, s] = await Promise.all([api("/v1/budget"), api("/v1/status")]);
+  $("#budget-out").innerHTML = `<div class="stats">
+    <div class="stat"><span class="muted small">Сегодня</span><b>${usd(b.today_spent_usd)}</b>
+      <span class="muted small">лимит ${b.day_limit_usd ? usd(b.day_limit_usd) : "нет"}</span></div>
+    <div class="stat"><span class="muted small">Лимит на задачу</span><b>${b.task_limit_usd ? usd(b.task_limit_usd) : "нет"}</b></div>
+    <div class="stat"><span class="muted small">Всего</span><b>${usd(b.total_spent_usd)}</b></div></div>`
+    + ((b.history || []).length ? `<h3>По дням</h3><div class="table-wrap"><table><tr><th>День</th>
+      <th>Расход</th><th>Запросов</th></tr>` + b.history.map(d => `<tr><td>${esc(d.day)}</td>
+      <td>${usd(d.usd)}</td><td>${num(d.requests)}</td></tr>`).join("") + "</table></div>" : "");
+  const kb = s.knowledge || {};
+  $("#status-out").innerHTML = `<div class="stats">
+    <div class="stat"><span class="muted small">Специалисты</span><b>${s.specialists.length}</b></div>
+    <div class="stat"><span class="muted small">Уроков</span><b>${num(s.lessons)}</b></div>
+    <div class="stat"><span class="muted small">Фактов о вас</span><b>${num(s.facts)}</b></div>
+    <div class="stat"><span class="muted small">Документов</span><b>${num(kb.files || 0)}</b></div>
+    <div class="stat"><span class="muted small">Задач в работе</span><b>${num(s.api.jobs)}</b></div>
+    </div><p class="muted small">Самопроверка: ${esc(s.self_check)} · агенты: ${esc(s.specialists.join(", "))}</p>`;
+}
+
+start();
+</script>
+</body>
+</html>

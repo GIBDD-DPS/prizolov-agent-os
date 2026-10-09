@@ -8,14 +8,17 @@
 из PRIZOLOV_API_KEYS в заголовке Authorization: Bearer <ключ> или X-API-Key.
 """
 
+import base64
+import hashlib
 import hmac
 import logging
+import re
 from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import Any, AsyncIterator, Dict, List, Optional, Set
 
 from fastapi import Depends, FastAPI, HTTPException, Query, Request
-from fastapi.responses import FileResponse, JSONResponse
+from fastapi.responses import FileResponse, HTMLResponse, JSONResponse
 from fastapi.security import APIKeyHeader, HTTPAuthorizationCredentials, HTTPBearer
 from pydantic import BaseModel, Field
 
@@ -39,6 +42,8 @@ logger = logging.getLogger(__name__)
 
 DEFAULT_HOST = "127.0.0.1"
 DEFAULT_PORT = 8800
+
+WEB_PAGE = Path(__file__).with_name("web") / "index.html"
 
 _bearer = HTTPBearer(auto_error=False)
 _api_key = APIKeyHeader(name="X-API-Key", auto_error=False)
@@ -126,6 +131,17 @@ def create_app(service: ApiService, api_keys: Set[str]) -> FastAPI:
     def health() -> Dict[str, Any]:
         return {"status": "ok", "product": __title__, "version": __version__,
                 "author": __author__, "brand": __brand__, "project_id": PROJECT_ID}
+
+    page, csp = _web_page()
+
+    @app.get("/", include_in_schema=False)
+    def web() -> HTMLResponse:
+        """Веб-интерфейс: вход по ключу API, дальше все запросы - к /v1."""
+        return HTMLResponse(page, headers={
+            "Content-Security-Policy": csp,
+            "X-Content-Type-Options": "nosniff",
+            "Referrer-Policy": "no-referrer",
+        })
 
     v1 = [Depends(authorize)]
 
@@ -251,6 +267,25 @@ def create_app(service: ApiService, api_keys: Set[str]) -> FastAPI:
     return app
 
 
+def _web_page() -> "tuple[str, str]":
+    """Страница и строгая политика CSP: разрешён только её собственный скрипт (по хэшу)."""
+    page = WEB_PAGE.read_text(encoding="utf-8")
+    scripts = re.findall(r"<script>(.*?)</script>", page, flags=re.S)
+    hashes = " ".join(
+        "'sha256-" + base64.b64encode(hashlib.sha256(s.encode()).digest()).decode() + "'"
+        for s in scripts
+    )
+    csp = (
+        "default-src 'none'; "
+        f"script-src {hashes}; "
+        "style-src 'unsafe-inline'; "
+        "img-src 'self' blob: data:; "
+        "connect-src 'self'; "
+        "form-action 'self'; frame-ancestors 'none'; base-uri 'none'"
+    )
+    return page, csp
+
+
 async def _read_limited(request: Request) -> bytes:
     from ..telegram.service import MAX_UPLOAD_BYTES
 
@@ -296,7 +331,7 @@ def run(host: Optional[str] = None, port: Optional[int] = None, scheduler: bool 
         ScheduleRunner(kernel).start_background()
     host = host or settings.api_host
     port = port or settings.api_port
-    print(f"{HEADER}\nAPI: http://{host}:{port}  ·  документация: http://{host}:{port}/docs")
+    print(f"{HEADER}\nВеб-интерфейс: http://{host}:{port}  ·  API: http://{host}:{port}/docs")
     uvicorn.run(create_app(service, keys), host=host, port=port, log_level="warning")
     return 0
 
