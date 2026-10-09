@@ -42,7 +42,7 @@ dependencies = [
     "pypdf>=4.0.0",
     "python-docx>=1.2.0",
     "openpyxl>=3.1.0",
-    "matplotlib>=3.8.0",
+    "matplotlib>=3.10.9",
     "tzdata; sys_platform == 'win32'",
 ]
 
