@@ -1,0 +1,18 @@
+# Prizolov Agent OS 0.3.0 | Author: Dm.Andreyanov | Brand: Prizolov Lab | © 2026
+# SPDX-FileCopyrightText: 2026 Dm.Andreyanov / Prizolov Lab
+# SPDX-License-Identifier: Apache-2.0
+
+
+  Prizolov Agent OS · © 2026 Dm.Andreyanov / Prizolov Lab · prizolov.ru
+
+  Попробовать без ключа Claude:
+    prizolov cashflow examples/demo_bank_statement.csv --balance 3000000 --days 60
+    prizolov report --file examples/demo_prices.csv
+
+  Веб-интерфейс:
+    prizolov api          откроется вкладка с портом 8800
+    ключ для входа:       grep PRIZOLOV_API_KEYS .env
+
+  Агенты (нужен ключ Claude: секрет ANTHROPIC_API_KEY в настройках Codespaces
+  или prizolov init):
+    prizolov chat

@@ -27,12 +27,17 @@ LINES = [
     f"SPDX-FileCopyrightText: {ABOUT['__year__']} {ABOUT['__author__']} / {ABOUT['__brand__']}",
     f"SPDX-License-Identifier: {ABOUT['__license__']}",
 ]
-HASH_SUFFIXES = {".py", ".toml", ".ini", ".yml", ".yaml", ".cfg", ".txt", ".cff", ".example"}
-HASH_NAMES = {".gitignore", ".env.example"}
+HASH_SUFFIXES = {
+    ".py", ".toml", ".ini", ".yml", ".yaml", ".cfg", ".txt", ".cff", ".example", ".sh",
+}
+HASH_NAMES = {".gitignore", ".env.example", ".dockerignore", "Dockerfile"}
 HTML_SUFFIXES = {".md", ".html"}
-# Файлы, в которые шапку не вставляем: юридические тексты и данные.
-SKIP_NAMES = {"LICENSE", "NOTICE", "AUTHORS"}
-OLD_HEADER = re.compile(r"^(#|<!--) Prizolov Agent OS \S+ \| Author: ")
+# JSON с комментариями (devcontainer.json): шапка комментариями //.
+SLASH_NAMES = {"devcontainer.json"}
+# Файлы, в которые шапку не вставляем: юридические тексты и данные. llms.txt по
+# формату начинается с заголовка # Название; авторство указано в его тексте.
+SKIP_NAMES = {"LICENSE", "NOTICE", "AUTHORS", "llms.txt"}
+OLD_HEADER = re.compile(r"^(#|<!--|//) Prizolov Agent OS \S+ \| Author: ")
 
 
 def style(path: Path) -> Optional[str]:
@@ -40,6 +45,8 @@ def style(path: Path) -> Optional[str]:
         return None
     if path.name in HASH_NAMES or path.suffix in HASH_SUFFIXES:
         return "hash"
+    if path.name in SLASH_NAMES:
+        return "slash"
     if path.suffix in HTML_SUFFIXES:
         return "html"
     return None
@@ -48,6 +55,8 @@ def style(path: Path) -> Optional[str]:
 def render(kind: str) -> List[str]:
     if kind == "hash":
         return [f"# {line}" for line in LINES]
+    if kind == "slash":
+        return [f"// {line}" for line in LINES]
     return [f"<!-- {LINES[0]}", *LINES[1:-1], f"{LINES[-1]} -->"]
 
 
