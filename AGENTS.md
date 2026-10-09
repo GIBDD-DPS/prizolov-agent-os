@@ -12,11 +12,13 @@ SPDX-License-Identifier: Apache-2.0 -->
 Prizolov Agent OS — команда ИИ-агентов на Claude (Anthropic) для бизнеса. Автор и
 правообладатель — Dm.Andreyanov / Prizolov Lab, лицензия Apache 2.0.
 
-- **Агенты.** Директор поручает задачи пяти специалистам.
-- **Прогнозы рынков**, которые учатся на своих ошибках.
-- **Анализ выписок.**
+- **Агенты.** Директор поручает задачи семи специалистам: ассистент, исследователь,
+  писатель, финансовый и рыночный аналитики, юрист по договорам, специалист по госзакупкам.
+- **Прогнозы рынков**, которые учатся на своих ошибках, и открытая статистика точности.
+- **Деньги:** выписки 1С/CSV/Excel, статьи расходов, платёжный календарь.
+- **Портфель инвестора**, **госзакупки**, **проверка договоров**.
 - **Локальная база знаний.**
-- **Интерфейсы:** CLI, веб-интерфейс, HTTP API, Telegram-бот, расписание.
+- **Интерфейсы:** CLI, веб-интерфейс, HTTP API, Telegram-бот, MCP-сервер, расписание.
 
 ## Где что лежит
 
@@ -33,8 +35,11 @@ Prizolov Agent OS — команда ИИ-агентов на Claude (Anthropic)
 | `prizolov_os/improvement/` | критик, уроки, версии промптов, инструменты от агентов |
 | `prizolov_os/security/` | защита от prompt injection |
 | `prizolov_os/scheduler.py`, `reports.py`, `knowledge.py` | расписание, отчёты, база знаний |
+| `prizolov_os/analytics/statements.py`, `payment_calendar.py` | выписки 1С/CSV/Excel, платёжный календарь |
+| `prizolov_os/portfolio.py`, `tenders.py`, `accuracy.py` | портфель, госзакупки, статистика точности |
 | `cli/` | `main.py` (команды), `app.py` (чат), `onboarding.py` (init/doctor) |
 | `cli/api/` | HTTP API (FastAPI) и веб-интерфейс `web/index.html` |
+| `cli/mcp_server.py` | MCP-сервер (`prizolov mcp`) |
 | `cli/telegram/` | Telegram-бот |
 | `tests/` | тесты (pytest) |
 | `legacy/` | прежний код, не трогать и не импортировать |
@@ -66,7 +71,8 @@ python scripts/stamp_headers.py --check      # проверить шапки (к
    - Модель — `FakeLLMClient` со сценарием ответов (`tool_use_response(...)` — вызов
      инструмента, строка — текстовый ответ).
    - Котировки — заглушка `StubMarket` из `tests/test_reports.py`.
-   - Telegram — `FakeIO` из `tests/test_telegram.py`.
+   - Telegram — `FakeIO` из `tests/test_telegram.py`; лента ЕИС — `RSS` из
+     `tests/test_tenders.py`; портфель — `MultiMarket` из `tests/test_portfolio.py`.
    - Ядро в тестах: `Kernel.create(llm=..., store=Store(), self_check="off", ...)`.
 4. **Безопасность.**
    - Данные из интернета, документов и файлов пользователя — недоверенные: такие
