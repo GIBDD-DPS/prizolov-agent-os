@@ -37,6 +37,10 @@ class Settings:
         telegram_token: Токен Telegram-бота
         telegram_allowed_ids: Telegram ID, которым разрешён доступ к боту (через запятую)
         timezone: Часовой пояс для расписания задач
+        api_keys: Ключи доступа к HTTP API (через запятую)
+        api_host: Адрес, на котором слушает HTTP API
+        api_port: Порт HTTP API
+        api_workers: Сколько задач API выполнять одновременно
         log_level: Уровень логирования (DEBUG, INFO, WARNING, ERROR)
         log_file: Путь к файлу логов (опционально)
         security_level: Уровень безопасности (low, medium, high)
@@ -61,6 +65,10 @@ class Settings:
     telegram_token: Optional[str] = None
     telegram_allowed_ids: str = ""
     timezone: str = "Europe/Moscow"
+    api_keys: str = ""
+    api_host: str = "127.0.0.1"
+    api_port: int = 8800
+    api_workers: int = 2
     log_level: str = "INFO"
     log_file: Optional[str] = None
     security_level: str = "high"
@@ -102,6 +110,10 @@ class Settings:
             telegram_token=os.getenv("TELEGRAM_BOT_TOKEN") or None,
             telegram_allowed_ids=os.getenv("PRIZOLOV_TELEGRAM_ALLOWED_IDS", ""),
             timezone=os.getenv("PRIZOLOV_TIMEZONE", "Europe/Moscow"),
+            api_keys=os.getenv("PRIZOLOV_API_KEYS", ""),
+            api_host=os.getenv("PRIZOLOV_API_HOST", "127.0.0.1"),
+            api_port=int(os.getenv("PRIZOLOV_API_PORT", "8800")),
+            api_workers=int(os.getenv("PRIZOLOV_API_WORKERS", "2")),
             log_level=os.getenv("PRIZOLOV_LOG_LEVEL", "INFO"),
             log_file=os.getenv("PRIZOLOV_LOG_FILE"),
             security_level=os.getenv("PRIZOLOV_SECURITY_LEVEL", "high"),
@@ -150,6 +162,12 @@ class Settings:
 
         if not 1 <= self.parallel <= 16:
             raise ValueError("parallel: от 1 до 16")
+
+        if not 1 <= self.api_workers <= 16:
+            raise ValueError("api_workers: от 1 до 16")
+
+        if not 1 <= self.api_port <= 65535:
+            raise ValueError("api_port: от 1 до 65535")
 
         if self.compact_at and self.compact_at < 50_000:
             raise ValueError("compact_at: минимум 50000 токенов (или 0 - не сжимать)")

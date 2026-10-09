@@ -8,6 +8,9 @@
     prizolov chat [--session ID]   интерактивный диалог
     prizolov run "задача"          одна задача
     prizolov sessions              сохранённые диалоги
+    prizolov report GOLD           отчёт по активу без Claude
+    prizolov telegram              Telegram-бот
+    prizolov api                   HTTP API
 """
 
 import argparse
@@ -52,6 +55,13 @@ def build_parser() -> argparse.ArgumentParser:
     report.add_argument("--history", type=int, default=365, help="дней истории")
     sub.add_parser("telegram", help="запустить Telegram-бота (с расписанием)")
     sub.add_parser("scheduler", help="запустить только планировщик задач")
+    api = sub.add_parser("api", help="запустить HTTP API (документация: /docs)")
+    api.add_argument("--host", help="адрес (по умолчанию PRIZOLOV_API_HOST или 127.0.0.1)")
+    api.add_argument("--port", type=int, help="порт (по умолчанию PRIZOLOV_API_PORT или 8800)")
+    api.add_argument(
+        "--scheduler", action="store_true",
+        help="выполнять задачи по расписанию в этом же процессе (если не запущен бот)",
+    )
     return parser
 
 
@@ -77,6 +87,11 @@ def main(
     if args.command == "scheduler":
         setup_logging(level=logging.DEBUG if args.verbose else logging.INFO)
         return run_scheduler(console, kernel_factory)
+    if args.command == "api":
+        from .api.server import run as run_api
+
+        setup_logging(level=logging.DEBUG if args.verbose else logging.WARNING)
+        return run_api(args.host, args.port, args.scheduler)
     if args.command == "telegram":
         from .telegram.bot import run as run_telegram
 
