@@ -15,11 +15,16 @@ SPDX-License-Identifier: Apache-2.0 -->
 металлов, акций, валют и криптовалют, анализ движения денег, база знаний по вашим
 документам, веб-интерфейс, Telegram-бот, расписание и HTTP API.
 
-![Веб-интерфейс: агенты анализируют выписку и оценивают риск кассового разрыва (демо-данные)](docs/images/web-chat.png)
+![Веб-интерфейс: агенты анализируют выписку и оценивают риск кассового разрыва, затем отчёт по активу (демо-данные)](docs/images/demo.gif)
 
 ## Попробовать за минуту
 
-Без ключа Claude и без регистрации (выписка — демо-данные из [examples/](examples/)):
+**В браузере, без установки:** нажмите
+[![Открыть в GitHub Codespaces](https://github.com/codespaces/badge.svg)](https://codespaces.new/GIBDD-DPS/prizolov-agent-os?quickstart=1)
+— через пару минут откроется готовая среда с подсказками; веб-интерфейс запускается
+командой `prizolov api`.
+
+**На своём компьютере** — без ключа Claude и без регистрации (выписка — демо-данные из [examples/](examples/)):
 
 ```bash
 git clone https://github.com/GIBDD-DPS/prizolov-agent-os.git && cd prizolov-agent-os
@@ -305,7 +310,7 @@ print(to_markdown(report))
 - [docs/configuration.md](docs/configuration.md) — все настройки `.env`.
 - [docs/api.md](docs/api.md) — HTTP API.
 - [examples/](examples/) — демо-данные и пошаговые примеры.
-- [CHANGELOG.md](CHANGELOG.md) — что нового.
+- [CHANGELOG.md](CHANGELOG.md) — что нового; [ROADMAP.md](ROADMAP.md) — что дальше.
 
 ## Разработка
 
@@ -327,7 +332,9 @@ python scripts/stamp_headers.py                 # шапки авторства 
 - **Прежняя версия кода** лежит в папке `legacy/`.
 
 Как помочь проекту — в [CONTRIBUTING.md](CONTRIBUTING.md); об уязвимостях — в
-[SECURITY.md](SECURITY.md).
+[SECURITY.md](SECURITY.md). ИИ-помощникам (Claude Code, Codex, Cursor) правила проекта
+даёт [AGENTS.md](AGENTS.md); краткое описание для языковых моделей — [llms.txt](llms.txt).
+Готовая среда разработки — [.devcontainer/](.devcontainer/) (GitHub Codespaces, VS Code).
 
 ## Авторство и лицензия
 

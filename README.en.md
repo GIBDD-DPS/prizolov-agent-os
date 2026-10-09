@@ -23,11 +23,15 @@ On top of that you get:
 The interface and agent replies are in Russian by default. The agents answer in the
 user's language.
 
-![Web interface: agents analyse a bank statement and estimate the risk of running out of cash (demo data)](docs/images/web-chat.png)
+![Web interface: agents analyse a bank statement and estimate the risk of running out of cash, then an asset report (demo data)](docs/images/demo.gif)
 
 ## Try it in a minute
 
-No Claude key needed (the bank statement is demo data from [examples/](examples/)):
+**In the browser, nothing to install:**
+[![Open in GitHub Codespaces](https://github.com/codespaces/badge.svg)](https://codespaces.new/GIBDD-DPS/prizolov-agent-os?quickstart=1)
+— a ready environment opens in a couple of minutes; start the web UI with `prizolov api`.
+
+**On your computer** — no Claude key needed (the bank statement is demo data from [examples/](examples/)):
 
 ```bash
 git clone https://github.com/GIBDD-DPS/prizolov-agent-os.git && cd prizolov-agent-os
@@ -110,7 +114,8 @@ Scheduled tasks are set up with `/schedule` in the chat or Telegram, or by askin
 - [docs/configuration.md](docs/configuration.md) — all settings.
 - [docs/api.md](docs/api.md) — HTTP API reference.
 - [examples/](examples/) — demo data and walkthroughs.
-- [CONTRIBUTING.md](CONTRIBUTING.md), [SECURITY.md](SECURITY.md), [CHANGELOG.md](CHANGELOG.md).
+- [CONTRIBUTING.md](CONTRIBUTING.md), [SECURITY.md](SECURITY.md), [CHANGELOG.md](CHANGELOG.md), [ROADMAP.md](ROADMAP.md).
+- [AGENTS.md](AGENTS.md) — rules for AI coding assistants; [llms.txt](llms.txt) — project summary for LLMs.
 
 ## Authorship and license
 

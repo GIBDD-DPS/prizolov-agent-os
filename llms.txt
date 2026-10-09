@@ -1,0 +1,38 @@
+# Prizolov Agent OS
+
+> Open-source team of AI agents built on Claude (Anthropic) for business, by Dm.Andreyanov / Prizolov Lab (prizolov.ru), Apache 2.0. A Director agent delegates to five specialists (assistant, researcher, writer, cash-flow analyst, market analyst), checks answers with a critic and learns from user feedback. It forecasts metals, stocks, currencies and crypto (Yahoo Finance, Moscow Exchange, Bank of Russia) with methods that compete on history and calibrate on their own errors, analyses bank statements for cash gaps, and searches a local knowledge base of the user's documents. Interfaces: CLI, web UI, HTTP API, Telegram bot, scheduler, Docker. Python 3.10+.
+
+Key facts:
+
+- Install: `pip install -e .` from a clone; extras `[api]` (web UI and HTTP API), `[telegram]` (bot), `[all]`.
+- Setup: `prizolov init` writes `.env` (Claude key, model, budget, Telegram, API key); `prizolov doctor` checks the installation.
+- Without a Claude key: `prizolov report GOLD --horizons 1,7,15,30` (multi-horizon forecasts), `prizolov cashflow statement.csv --balance N --days N` (cash-gap risk), `prizolov report --file prices.csv`.
+- With a key: `prizolov chat`, `prizolov run "task"`, `prizolov api` (web UI at http://127.0.0.1:8800), `prizolov telegram`.
+- Every forecast reports a median, 80%/95% intervals, probability of growth and how many backtested forecasts the chosen method was checked on.
+- Default model `claude-sonnet-5-5`; per-task and daily spending limits; writes need human approval; untrusted content is wrapped against prompt injection.
+- User-facing texts and documentation are in Russian; `README.en.md` is in English.
+
+## Docs
+
+- [README (English)](https://raw.githubusercontent.com/GIBDD-DPS/prizolov-agent-os/main/README.en.md): overview, quick start, features
+- [README (Russian)](https://raw.githubusercontent.com/GIBDD-DPS/prizolov-agent-os/main/README.md): full user guide: web UI, Docker, Telegram, scheduler, API
+- [Architecture](https://raw.githubusercontent.com/GIBDD-DPS/prizolov-agent-os/main/docs/architecture.md): agents, self-learning, forecasting, knowledge base, security
+- [Configuration](https://raw.githubusercontent.com/GIBDD-DPS/prizolov-agent-os/main/docs/configuration.md): every `.env` setting
+- [HTTP API](https://raw.githubusercontent.com/GIBDD-DPS/prizolov-agent-os/main/docs/api.md): endpoints for tasks, approvals, reports, forecasts, schedules, documents
+
+## Examples
+
+- [Examples guide](https://raw.githubusercontent.com/GIBDD-DPS/prizolov-agent-os/main/examples/README.md): demo bank statement and price series, step by step
+- [API client](https://raw.githubusercontent.com/GIBDD-DPS/prizolov-agent-os/main/examples/api_client.py): dependency-free Python client for the HTTP API
+
+## Development
+
+- [AGENTS.md](https://raw.githubusercontent.com/GIBDD-DPS/prizolov-agent-os/main/AGENTS.md): code layout, commands and rules for AI coding assistants
+- [CONTRIBUTING.md](https://raw.githubusercontent.com/GIBDD-DPS/prizolov-agent-os/main/CONTRIBUTING.md): how to contribute
+- [ROADMAP.md](https://raw.githubusercontent.com/GIBDD-DPS/prizolov-agent-os/main/ROADMAP.md): planned features
+
+## Optional
+
+- [CHANGELOG.md](https://raw.githubusercontent.com/GIBDD-DPS/prizolov-agent-os/main/CHANGELOG.md): release notes
+- [SECURITY.md](https://raw.githubusercontent.com/GIBDD-DPS/prizolov-agent-os/main/SECURITY.md): reporting vulnerabilities
+- [NOTICE](https://raw.githubusercontent.com/GIBDD-DPS/prizolov-agent-os/main/NOTICE): attribution required on redistribution (Apache 2.0, section 4(d))
