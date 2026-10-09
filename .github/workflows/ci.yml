@@ -65,6 +65,26 @@ jobs:
       - name: Pytest
         run: python -m pytest -q -p no:cacheprovider
 
+  lowest:
+    name: Минимальные версии зависимостей
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      ANTHROPIC_API_KEY: ""
+      PRIZOLOV_TRACE: "false"
+      MPLBACKEND: Agg
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.10"
+      - name: Установить самые старые допустимые версии из pyproject.toml
+        run: |
+          pip install uv
+          uv pip install --system --resolution lowest-direct -e ".[dev,telegram,api]"
+      - name: Pytest
+        run: python -m pytest -q -p no:cacheprovider
+
   docker:
     name: Docker-образ
     runs-on: ubuntu-latest

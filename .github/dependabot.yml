@@ -9,6 +9,10 @@ updates:
     schedule:
       interval: monthly
     open-pull-requests-limit: 5
+    # Минимальные версии в pyproject.toml поднимаем, только когда новая версия
+    # не попадает в диапазон: иначе у пользователей со старыми библиотеками
+    # установка ломалась бы без причины.
+    versioning-strategy: increase-if-necessary
   - package-ecosystem: github-actions
     directory: /
     schedule:
