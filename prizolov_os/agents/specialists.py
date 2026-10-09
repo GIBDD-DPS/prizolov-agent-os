@@ -31,6 +31,7 @@ from ..tools import (
     web_fetch_tool,
     web_search_tool,
 )
+from ..tools.contracts import contract_tools
 
 COMMON_RULES = """
 Prizolov Agent OS создана автором Dm.Andreyanov (бренд Prizolov Lab, \
@@ -97,6 +98,29 @@ analyze_cashflow читает все. Остаток на начало выпи�
 - Прогноз - статистическая оценка по истории, а не гарантия; говори об этом.
 - Сообщай надёжность из forecast.reliability. Если в ответе есть forecast.verified_now, \
 расскажи, насколько сбылись прошлые прогнозы.""" + COMMON_RULES
+
+LAWYER_PROMPT = """Ты - юрист по договорам Prizolov Agent OS: проверяешь договоры, \
+допсоглашения, технические задания и документацию закупок на риски для пользователя.
+
+Как работаешь:
+1. Прочитай документ (read_file; документы пользователя ищи через search_knowledge или \
+list_files). Уточни, на чьей стороне пользователь (заказчик или исполнитель, покупатель \
+или продавец), если это не ясно из задачи.
+2. Проверь по списку: стороны и реквизиты; предмет и объём работ; цена, порядок и сроки \
+оплаты (аванс, отсрочка, обеспечение); сроки исполнения; приёмка и сроки подписания \
+актов; неустойки и штрафы (их размер, симметричность, есть ли ограничение); ограничение \
+ответственности; односторонний отказ и расторжение; автопролонгация; гарантии; \
+конфиденциальность; права на результаты работ; форс-мажор; подсудность и применимое право; \
+досудебный порядок; условия, отсылающие к неприложенным документам.
+3. Для каждого риска: пункт договора с цитатой, в чём риск, уровень (высокий, средний, \
+низкий) и конкретная формулировка правки.
+4. Для двух версий документа используй compare_documents и разбери каждое значимое \
+изменение: кому оно выгодно.
+5. Начинай ответ с короткой сводки для руководителя: подписывать как есть, с правками или \
+не подписывать, и три главных риска.
+
+Ты не заменяешь юриста: для крупных сделок рекомендуй проверку специалистом. Цитируй \
+текст договора дословно и не выдумывай пункты, которых нет.""" + COMMON_RULES
 
 MARKET_PROMPT = """Ты - рыночный аналитик Prizolov Agent OS: драгоценные металлы, \
 акции, валюты, криптовалюты, сырьё.
@@ -219,6 +243,33 @@ def create_cashflow_analyst(
     )
 
 
+def create_lawyer(
+    llm: Optional[LLMClient] = None,
+    workspace_dir: Optional[Union[str, Path]] = None,
+    approver: Optional[Approver] = None,
+    knowledge: Optional[KnowledgeBase] = None,
+) -> Agent:
+    workspace = Workspace(_workspace_dir(workspace_dir))
+    return Agent(
+        role="юрист по договорам",
+        name="lawyer",
+        description=(
+            "Проверяет договоры, допсоглашения и документацию закупок на риски: неустойки, "
+            "оплата, сроки, ответственность, расторжение; сравнивает версии договора и "
+            "предлагает правки."
+        ),
+        system_prompt=LAWYER_PROMPT,
+        tools=[
+            *file_tools(workspace),
+            *contract_tools(workspace),
+            *([knowledge_tool(knowledge)] if knowledge else []),
+            datetime_tool(),
+        ],
+        llm=llm,
+        approver=approver,
+    )
+
+
 def create_market_analyst(
     llm: Optional[LLMClient] = None,
     workspace_dir: Optional[Union[str, Path]] = None,
@@ -259,7 +310,7 @@ def create_specialists(
     store: Optional[Store] = None,
 ) -> Dict[str, Agent]:
     """Все специалисты по именам: assistant, researcher, writer, cashflow_analyst,
-    market_analyst."""
+    market_analyst, lawyer."""
     agents = [
         create_assistant(llm, workspace_dir, approver),
         create_researcher(llm, workspace_dir, approver, knowledge=knowledge),
@@ -269,6 +320,7 @@ def create_specialists(
             PaymentCalendar(store) if store is not None else None,
         ),
         create_market_analyst(llm, workspace_dir, approver, market, forecasts),
+        create_lawyer(llm, workspace_dir, approver, knowledge=knowledge),
     ]
     return {agent.name: agent for agent in agents}
 

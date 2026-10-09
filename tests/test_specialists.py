@@ -27,7 +27,8 @@ def specialists(tmp_path):
 
 def test_all_specialists_created(specialists):
     assert list(specialists) == [
-        "assistant", "researcher", "writer", "cashflow_analyst", "market_analyst"
+        "assistant", "researcher", "writer", "cashflow_analyst", "market_analyst",
+        "lawyer",
     ]
     for agent in specialists.values():
         assert agent.description
@@ -52,7 +53,7 @@ def test_tool_sets(specialists, name, expected_tools):
 
 def test_only_writers_can_write(specialists):
     writers = {n for n, a in specialists.items() if "write_file" in a.tools}
-    assert writers == {"assistant", "writer"}
+    assert writers == {"assistant", "writer", "lawyer"}
 
 
 def test_researcher_sends_server_tools(tmp_path):
