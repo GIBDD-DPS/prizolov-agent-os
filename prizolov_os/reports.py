@@ -73,9 +73,11 @@ def market_report(
     source: Optional[str] = None,
     horizons: Sequence[int] = DEFAULT_HORIZONS,
     history_days: int = 365,
+    series: Optional[PriceSeries] = None,
 ) -> MarketReport:
-    source = source or guess_source(symbol)
-    series: PriceSeries = market.history(source, symbol, history_days)
+    """Отчёт по активу. series - готовый ряд (например, из файла) вместо загрузки."""
+    if series is None:
+        series = market.history(source or guess_source(symbol), symbol, history_days)
     summary = analyze_series(series.dates, series.closes, max(horizons))
     summary.pop("forecast", None)
     report = MarketReport(
@@ -89,6 +91,18 @@ def market_report(
         )
         report.rows.append(HorizonRow(horizon, forecast))
     return report
+
+
+def load_price_file(path: Path) -> PriceSeries:
+    """Ряд цен из CSV или Excel: колонки даты (date/дата) и цены (close/цена/курс)."""
+    from .tools.builtin import Workspace
+    from .tools.finance import parse_price_csv
+
+    path = Path(path)
+    dates, closes = parse_price_csv(Workspace(path.parent).read_table(path.name))
+    if len(closes) < 30:
+        raise ValueError(f"В файле {len(closes)} цен; для прогноза нужно хотя бы 30")
+    return PriceSeries("csv", path.stem, "", dates, closes)
 
 
 def save_report(report: MarketReport, directory: Path) -> Path:

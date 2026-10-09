@@ -178,3 +178,41 @@ def print_report(console: Console, report: Any) -> None:
         summary = escape(row.reliability.get("summary", ""))
         console.print(f"[dim]{row.horizon_days} дн.: {summary}[/]")
     console.print(f"[italic]{escape(DISCLAIMER)}[/]")
+
+
+def print_cashflow(console: Console, analysis: Dict[str, Any]) -> None:
+    """Анализ выписки: итоги, прогноз остатка, месяцы, крупные расходы."""
+    from rich.table import Table
+
+    def money(value: float) -> str:
+        return f"{value:,.2f}".replace(",", " ")
+
+    p, f = analysis["period"], analysis["forecast"]
+    console.print(f"[bold]Выписка: {p['start']} – {p['end']}[/] · операций "
+                  f"{analysis['transactions']}", highlight=False)
+    console.print(
+        f"Поступления {money(analysis['total_inflow'])} · расходы "
+        f"{money(analysis['total_outflow'])} · остаток на конец "
+        f"{money(analysis['closing_balance'])} · в среднем за день "
+        f"{money(analysis['average_daily_net'])}", highlight=False,
+    )
+    risk = f["probability_negative"] * 100
+    color = "red" if risk >= 20 else "yellow" if risk >= 5 else "green"
+    console.print(
+        f"\n[bold]Прогноз на {f['date']}[/] ({f['horizon_days']} дн.): ожидаемый остаток "
+        f"[bold]{money(f['expected_balance'])}[/], 80%: {money(f['low_80'])} – "
+        f"{money(f['high_80'])}, 95%: {money(f['low_95'])} – {money(f['high_95'])}",
+        highlight=False,
+    )
+    console.print(f"Вероятность уйти в минус: [{color}]{risk:.1f}%[/]", highlight=False)
+    if "days_until_zero_at_current_rate" in f:
+        console.print(f"[yellow]При текущем темпе деньги закончатся через "
+                      f"{f['days_until_zero_at_current_rate']} дн.[/]")
+    months = Table("Месяц", "Поступления", "Расходы", "Итог", title="По месяцам")
+    for m in analysis["monthly"]:
+        months.add_row(m["month"], money(m["inflow"]), money(m["outflow"]), money(m["net"]))
+    console.print(months)
+    top = Table("Назначение", "Сумма", title="Крупнейшие расходы")
+    for e in analysis["top_expenses"]:
+        top.add_row(escape(e["description"]), money(e["total"]))
+    console.print(top)

@@ -87,7 +87,7 @@ def market_tools(
 
     def analyze_price_csv(path: str, horizon_days: int) -> Dict[str, Any]:
         _check_horizon(horizon_days)
-        dates, closes = _parse_price_csv(workspace.read_table(path))
+        dates, closes = parse_price_csv(workspace.read_table(path))
         result = analyze_series(dates, closes, horizon_days)
         result["forecast"] = engine.market_forecast("csv", path, dates, closes, horizon_days)
         return {**result, "note": FORECAST_NOTE}
@@ -145,7 +145,7 @@ def _check_horizon(horizon_days: int) -> None:
         raise ValueError(f"Горизонт прогноза должен быть от 1 до {MAX_HORIZON_DAYS} дней")
 
 
-def _parse_price_csv(text: str):
+def parse_price_csv(text: str):
     text = text.lstrip("﻿")
     try:
         dialect = csv.Sniffer().sniff(text[:4096], delimiters=",;\t")
@@ -193,7 +193,7 @@ def chart_tools(
     ) -> Dict[str, Any]:
         _check_horizon(horizon_days)
         if source == "file":
-            dates, closes = _parse_price_csv(workspace.read_table(symbol))
+            dates, closes = parse_price_csv(workspace.read_table(symbol))
             currency, unit, title = "", "", f"Цена: {symbol}"
         else:
             series = market.history(source, symbol, history_days)
