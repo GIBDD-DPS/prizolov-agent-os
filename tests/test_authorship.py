@@ -135,3 +135,17 @@ def test_chat_banner(tmp_path):
                   lambda _: (_ for _ in ()).throw(EOFError()))
     app.loop()
     assert HEADER in out.getvalue()
+
+
+def test_devcontainer_json_and_skipped_files(tmp_path):
+    jsonc = tmp_path / "devcontainer.json"
+    jsonc.write_text('{"name": "x"}\n')
+    stamp_headers.stamp_file(jsonc)
+    assert jsonc.read_text().startswith(f"// {HEADER}")
+    llms = tmp_path / "llms.txt"
+    llms.write_text("# Prizolov Agent OS\n")
+    assert not stamp_headers.stamp_file(llms)
+    shell = tmp_path / "setup.sh"
+    shell.write_text("#!/usr/bin/env bash\necho hi\n")
+    stamp_headers.stamp_file(shell)
+    assert shell.read_text().splitlines()[1] == f"# {HEADER}"

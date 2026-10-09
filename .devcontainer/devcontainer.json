@@ -1,0 +1,36 @@
+// Prizolov Agent OS 0.3.0 | Author: Dm.Andreyanov | Brand: Prizolov Lab | © 2026
+// SPDX-FileCopyrightText: 2026 Dm.Andreyanov / Prizolov Lab
+// SPDX-License-Identifier: Apache-2.0
+
+// Готовая среда для GitHub Codespaces и VS Code Dev Containers:
+// Code → Codespaces → Create codespace, затем в терминале: prizolov api
+{
+  "name": "Prizolov Agent OS",
+  "image": "mcr.microsoft.com/devcontainers/python:1-3.12-bookworm",
+  "postCreateCommand": "bash .devcontainer/setup.sh",
+  "postAttachCommand": "grep -v '^#' .devcontainer/welcome.txt",
+  "forwardPorts": [8800],
+  "portsAttributes": {
+    "8800": {
+      "label": "Prizolov Agent OS: веб-интерфейс",
+      "onAutoForward": "openBrowser"
+    }
+  },
+  "secrets": {
+    "ANTHROPIC_API_KEY": {
+      "description": "Ключ Claude API для агентов (необязательно: отчёты и анализ выписок работают без него).",
+      "documentationUrl": "https://console.anthropic.com/settings/keys"
+    }
+  },
+  "containerEnv": {
+    "MPLBACKEND": "Agg"
+  },
+  "remoteEnv": {
+    "PATH": "${containerEnv:PATH}:/home/vscode/.local/bin"
+  },
+  "customizations": {
+    "vscode": {
+      "extensions": ["ms-python.python", "charliermarsh.ruff"]
+    }
+  }
+}
