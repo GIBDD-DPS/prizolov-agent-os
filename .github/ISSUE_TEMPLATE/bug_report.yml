@@ -1,0 +1,37 @@
+# Prizolov Agent OS 0.3.0 | Author: Dm.Andreyanov | Brand: Prizolov Lab | © 2026
+# SPDX-FileCopyrightText: 2026 Dm.Andreyanov / Prizolov Lab
+# SPDX-License-Identifier: Apache-2.0
+
+name: Ошибка
+description: Что-то работает не так, как ожидалось
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Спасибо за сообщение! Не публикуйте ключи, токены и личные данные.
+        Об уязвимостях пишите по правилам SECURITY.md, а не здесь.
+  - type: textarea
+    id: what
+    attributes:
+      label: Что произошло
+      description: Что вы делали, что ожидали и что получилось.
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Как повторить
+      placeholder: |
+        1. prizolov report GOLD
+        2. ...
+  - type: textarea
+    id: doctor
+    attributes:
+      label: Вывод prizolov doctor --offline
+      render: text
+  - type: dropdown
+    id: interface
+    attributes:
+      label: Где
+      options: [Терминал (prizolov chat/run), Веб-интерфейс, HTTP API, Telegram-бот, Docker, Другое]

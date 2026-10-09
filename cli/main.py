@@ -5,10 +5,13 @@
 
 """Командная строка Prizolov Agent OS.
 
+    prizolov init                  пошаговая настройка
+    prizolov doctor                проверка установки
     prizolov chat [--session ID]   интерактивный диалог
     prizolov run "задача"          одна задача
     prizolov sessions              сохранённые диалоги
     prizolov report GOLD           отчёт по активу без Claude
+    prizolov cashflow bank.csv     анализ выписки без Claude
     prizolov telegram              Telegram-бот
     prizolov api                   HTTP API
 """
@@ -43,16 +46,28 @@ def build_parser() -> argparse.ArgumentParser:
         "--self-check", choices=SELF_CHECK_MODES, help="режим самопроверки ответов"
     )
     sub = parser.add_subparsers(dest="command")
+    sub.add_parser("init", help="пошаговая настройка: ключ Claude, модель, Telegram, API")
+    doctor = sub.add_parser("doctor", help="проверить установку: ключ, источники котировок, папки")
+    doctor.add_argument("--offline", action="store_true", help="без проверок по сети")
     chat = sub.add_parser("chat", help="интерактивный диалог (по умолчанию)")
     chat.add_argument("--session", help="продолжить сохранённый диалог")
     run = sub.add_parser("run", help="выполнить одну задачу")
     run.add_argument("task", nargs="+", help="текст задачи")
     sub.add_parser("sessions", help="список сохранённых диалогов")
     report = sub.add_parser("report", help="отчёт по активу без Claude: прогнозы, таблица, график")
-    report.add_argument("symbol", help="тикер или код: GOLD, USD (ЦБ), GC=F, BTC-USD (Yahoo), SBER")
+    report.add_argument(
+        "symbol", nargs="?", help="тикер или код: GOLD, USD (ЦБ), GC=F, BTC-USD (Yahoo), SBER"
+    )
+    report.add_argument("--file", help="свои цены: CSV или Excel с колонками даты и цены")
     report.add_argument("--source", choices=["yahoo", "moex", "cbr"], help="источник данных")
     report.add_argument("--horizons", default="1,7,15,30", help="горизонты в днях через запятую")
     report.add_argument("--history", type=int, default=365, help="дней истории")
+    cashflow = sub.add_parser(
+        "cashflow", help="анализ выписки без Claude: остаток, кассовый разрыв, график"
+    )
+    cashflow.add_argument("file", help="выписка: CSV или Excel (дата, сумма, назначение)")
+    cashflow.add_argument("--balance", type=float, default=0.0, help="остаток на начало выписки")
+    cashflow.add_argument("--days", type=int, default=30, help="горизонт прогноза, дней")
     sub.add_parser("telegram", help="запустить Telegram-бота (с расписанием)")
     sub.add_parser("scheduler", help="запустить только планировщик задач")
     api = sub.add_parser("api", help="запустить HTTP API (документация: /docs)")
@@ -76,6 +91,17 @@ def main(
     console = console or Console()
     ask = ask or _make_input(console)
 
+    if args.command == "init":
+        from getpass import getpass
+
+        from .onboarding import run_init
+
+        return run_init(console, ask, getpass)
+    if args.command == "doctor":
+        from .onboarding import run_doctor
+
+        setup_logging(level=logging.DEBUG if args.verbose else logging.CRITICAL)
+        return run_doctor(console, settings, online=not args.offline)
     try:
         settings.validate()
     except ValueError as e:
@@ -84,6 +110,9 @@ def main(
     if args.command == "report":
         setup_logging(level=logging.DEBUG if args.verbose else logging.ERROR)
         return run_report(console, args)
+    if args.command == "cashflow":
+        setup_logging(level=logging.DEBUG if args.verbose else logging.ERROR)
+        return run_cashflow(console, args)
     if args.command == "scheduler":
         setup_logging(level=logging.DEBUG if args.verbose else logging.INFO)
         return run_scheduler(console, kernel_factory)
@@ -102,8 +131,8 @@ def main(
 
     if args.command != "sessions" and not _has_credentials():
         console.print(
-            "[yellow]Не найден ключ Anthropic. Добавьте в .env строку "
-            "ANTHROPIC_API_KEY=... (ключ: https://console.anthropic.com/)[/]"
+            "[yellow]Не найден ключ Anthropic. Запустите prizolov init или добавьте в .env "
+            "строку ANTHROPIC_API_KEY=... (ключ: https://console.anthropic.com/)[/]"
         )
 
     kernel = kernel_factory(
@@ -135,10 +164,13 @@ def run_report(console: Console, args: argparse.Namespace, market: Any = None) -
     from prizolov_os.forecasting import ForecastEngine, ForecastJournal
     from prizolov_os.market import MarketData, MarketDataError
     from prizolov_os.memory import Store
-    from prizolov_os.reports import market_report, save_report
+    from prizolov_os.reports import load_price_file, market_report, save_report
 
     from .render import print_report
 
+    if not args.symbol and not args.file:
+        console.print("[red]Укажите тикер (prizolov report GOLD) или файл (--file prices.csv)[/]")
+        return 1
     try:
         horizons = sorted({int(h) for h in args.horizons.split(",") if h.strip()})
     except ValueError:
@@ -149,16 +181,51 @@ def run_report(console: Console, args: argparse.Namespace, market: Any = None) -
         return 1
     engine = ForecastEngine(ForecastJournal(Store(settings.db_path)))
     try:
+        series = load_price_file(Path(args.file)) if args.file else None
         report = market_report(
-            market or MarketData(), engine, args.symbol, args.source, horizons, args.history
+            market or MarketData(), engine, args.symbol or "", args.source, horizons,
+            args.history, series=series,
         )
     except MarketDataError as e:
         console.print(f"[red]Не удалось получить котировки: {e}[/]")
+        return 1
+    except (OSError, ValueError) as e:
+        console.print(f"[red]{e}[/]")
         return 1
     path = save_report(report, Path(settings.workspace_dir) / "reports")
     print_report(console, report)
     console.print(f"\nОтчёт: {path}\nГрафик: {report.chart}")
     console.print("[dim]Прогнозы записаны в журнал и будут сверены с фактом (/forecasts).[/]")
+    return 0
+
+
+def run_cashflow(console: Console, args: argparse.Namespace) -> int:
+    """prizolov cashflow: анализ выписки и прогноз остатка без участия модели."""
+    from prizolov_os import charts
+    from prizolov_os.analytics import analyze_cashflow, parse_cashflow_csv
+    from prizolov_os.tools.builtin import Workspace
+
+    from .render import print_cashflow
+
+    if not 1 <= args.days <= 365:
+        console.print("[red]--days: от 1 до 365[/]")
+        return 1
+    path = Path(args.file)
+    try:
+        transactions = parse_cashflow_csv(Workspace(path.parent).read_table(path.name))
+        analysis = analyze_cashflow(transactions, args.balance, args.days)
+    except (OSError, ValueError) as e:
+        console.print(f"[red]{e}[/]")
+        return 1
+    out = Path(settings.workspace_dir) / "reports"
+    out.mkdir(parents=True, exist_ok=True)
+    stem = "".join(c if c.isalnum() else "_" for c in path.stem)
+    balance = charts.cashflow_forecast_chart(
+        out / f"cashflow-{stem}.png", transactions, args.balance, analysis["forecast"]
+    )
+    monthly = charts.monthly_flows_chart(out / f"cashflow-{stem}-months.png", analysis["monthly"])
+    print_cashflow(console, analysis)
+    console.print(f"\nГрафики: {balance}\n         {monthly}")
     return 0
 
 

@@ -374,11 +374,16 @@ class ApiService:
     # --- Прогнозы, качество, расходы -----------------------------------------
 
     def forecasts(self) -> Dict[str, Any]:
+        from prizolov_os.forecasting.classify import ASSET_CLASSES
+        from prizolov_os.forecasting.methods import METHOD_NAMES
+
         journal = self.kernel.forecasts
         board = journal.leaderboard()
         for row in board:
             row["backtest"] = row["backtest"].as_dict()
             row["live"] = row["live"].as_dict()
+            row["asset_class_name"] = ASSET_CLASSES.get(row["asset_class"], row["asset_class"])
+            row["method_name"] = METHOD_NAMES.get(row["method"], row["method"])
         return {"counts": journal.counts(), "methods": board}
 
     def verify_forecasts(self) -> Dict[str, Any]:

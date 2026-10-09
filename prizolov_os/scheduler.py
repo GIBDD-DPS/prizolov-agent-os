@@ -274,6 +274,16 @@ class ScheduleStore:
         )
         return [_task(r) for r in rows]
 
+    def claim(self, task: ScheduledTask, now: datetime) -> bool:
+        """Забирает наступившую задачу. Если планировщиков несколько (бот, API,
+        отдельный процесс с общей базой), задачу выполнит только забравший её первым."""
+        following = next_run(task.cron, now, self.tz)
+        cursor = self.store.execute(
+            "UPDATE scheduled_tasks SET next_run = ? WHERE id = ? AND next_run = ? AND enabled = 1",
+            (following.isoformat(), task.id, task.next_run.isoformat()),
+        )
+        return cursor.rowcount == 1
+
     def mark_run(self, task: ScheduledTask, status: str, error: str, now: datetime) -> None:
         # Пропущенные запуски не наверстываем: следующий - от текущего момента.
         following = next_run(task.cron, now, self.tz)
@@ -287,6 +297,11 @@ class ScheduleStore:
         """Ежедневная сверка прогнозов - чтобы система училась, даже если чат не открывают."""
         if not any(t.kind == "verify" and t.builtin for t in self.list()):
             self.add("ежедневно 08:50", "verify", "", builtin=True)
+        # Два процесса могли добавить её одновременно - оставляем одну.
+        self.store.execute(
+            "DELETE FROM scheduled_tasks WHERE builtin = 1 AND kind = 'verify' AND id > "
+            "(SELECT MIN(id) FROM scheduled_tasks WHERE builtin = 1 AND kind = 'verify')"
+        )
 
 
 def _task(row: Any) -> ScheduledTask:
@@ -326,7 +341,10 @@ class ScheduleRunner:
     def run_due(self, now: Optional[datetime] = None) -> List[RunResult]:
         now = now or datetime.now(timezone.utc)
         with self._lock:
-            return [self.run(task, now) for task in self.schedules.due(now)]
+            return [
+                self.run(task, now) for task in self.schedules.due(now)
+                if self.schedules.claim(task, now)
+            ]
 
     def run(self, task: ScheduledTask, now: Optional[datetime] = None) -> RunResult:
         now = now or datetime.now(timezone.utc)

@@ -120,6 +120,17 @@ def make_kernel(tmp_path, responses=(), store=None):
 
 
 class TestRunner:
+    def test_two_schedulers_run_task_once(self, tmp_path):
+        kernel = make_kernel(tmp_path)
+        kernel.schedules.add("ежедневно 09:00", "report", report_payload("GOLD", [1]), now=NOW)
+        first, second = ScheduleRunner(kernel), ScheduleRunner(kernel)
+        due = kernel.schedules.due(NOW + timedelta(days=1))
+        assert kernel.schedules.claim(due[0], NOW + timedelta(days=1))
+        assert not kernel.schedules.claim(due[0], NOW + timedelta(days=1))
+        later = NOW + timedelta(days=2)
+        assert len(first.run_due(later)) == 1
+        assert second.run_due(later) == []
+
     def test_report_task_delivered_with_chart(self, tmp_path):
         kernel = make_kernel(tmp_path)
         sent = []

@@ -37,8 +37,10 @@ def setup_logging(
             "%(asctime)s | %(levelname)-8s | %(name)s | %(message)s"
         )
 
+    # Консоль - по уровню команды; файл - по PRIZOLOV_LOG_LEVEL.
+    file_level = settings.get_log_level_int()
     logger = logging.getLogger("prizolov_os")
-    logger.setLevel(level)
+    logger.setLevel(min(level, file_level) if log_file else level)
     logger.handlers.clear()
 
     formatter = logging.Formatter(format_string)
@@ -56,7 +58,7 @@ def setup_logging(
         log_path.parent.mkdir(parents=True, exist_ok=True)
 
         file_handler = logging.FileHandler(log_file, encoding="utf-8")
-        file_handler.setLevel(level)
+        file_handler.setLevel(file_level)
         file_handler.setFormatter(formatter)
         logger.addHandler(file_handler)
 

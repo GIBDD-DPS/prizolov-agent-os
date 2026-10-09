@@ -9,6 +9,7 @@ import io
 import math
 import random
 from datetime import date, timedelta
+from pathlib import Path
 
 from rich.console import Console
 
@@ -63,11 +64,12 @@ def test_report_all_horizons_recorded(tmp_path):
     assert to_markdown(report) == text
 
 
-def run(tmp_path, monkeypatch, market, horizons="1,7,15,30"):
+def run(tmp_path, monkeypatch, market, horizons="1,7,15,30", symbol="GOLD", file=None):
     monkeypatch.setattr(settings, "db_path", str(tmp_path / "db.sqlite"))
     monkeypatch.setattr(settings, "workspace_dir", str(tmp_path / "ws"))
     out = io.StringIO()
-    args = argparse.Namespace(symbol="GOLD", source=None, horizons=horizons, history=365)
+    args = argparse.Namespace(symbol=symbol, source=None, horizons=horizons, history=365,
+                              file=file)
     code = run_report(Console(file=out, width=200, color_system=None), args, market=market)
     return code, out.getvalue()
 
@@ -87,3 +89,33 @@ def test_cli_report_errors(tmp_path, monkeypatch):
     assert code == 1 and "--horizons" in out
     code, out = run(tmp_path, monkeypatch, StubMarket(), horizons="0,500")
     assert code == 1
+
+
+EXAMPLES = Path(__file__).resolve().parent.parent / "examples"
+
+
+def test_cli_report_from_file(tmp_path, monkeypatch):
+    market = StubMarket()
+    code, out = run(tmp_path, monkeypatch, market, symbol=None,
+                    file=str(EXAMPLES / "demo_prices.csv"))
+    assert code == 0 and "demo_prices (csv)" in out and market.calls == []
+    code, out = run(tmp_path, monkeypatch, market, symbol=None, file=None)
+    assert code == 1 and "--file" in out
+    code, out = run(tmp_path, monkeypatch, market, symbol=None, file=str(tmp_path / "no.csv"))
+    assert code == 1 and "не найден" in out
+
+
+def test_cli_cashflow(tmp_path, monkeypatch):
+    from cli.main import run_cashflow
+
+    monkeypatch.setattr(settings, "workspace_dir", str(tmp_path / "ws"))
+    out = io.StringIO()
+    args = argparse.Namespace(file=str(EXAMPLES / "demo_bank_statement.csv"),
+                              balance=3_000_000.0, days=60)
+    assert run_cashflow(Console(file=out, width=200, color_system=None), args) == 0
+    text = out.getvalue()
+    assert "Вероятность уйти в минус" in text and "Заработная плата" in text
+    assert "закончатся через" in text
+    assert len(list((tmp_path / "ws" / "reports").glob("cashflow-*.png"))) == 2
+    args.days = 0
+    assert run_cashflow(Console(file=io.StringIO()), args) == 1

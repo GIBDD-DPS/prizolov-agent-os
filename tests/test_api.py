@@ -298,3 +298,22 @@ class TestService:
         monkeypatch.setattr(settings, "api_keys", "short")
         assert server.run() == 1
         assert "16" in capsys.readouterr().out
+
+
+class TestWeb:
+    def test_page_served_with_strict_csp(self, tmp_path):
+        client, _, _ = make_client(tmp_path)
+        response = client.get("/")
+        assert response.status_code == 200
+        assert "Prizolov Agent OS" in response.text and "Dm.Andreyanov" in response.text
+        csp = response.headers["Content-Security-Policy"]
+        assert "script-src 'sha256-" in csp and "unsafe-inline" not in csp.split(";")[1]
+        assert "frame-ancestors 'none'" in csp
+        assert response.headers["X-Project-Id"] == PROJECT_ID
+
+    def test_forecast_names_are_readable(self, tmp_path):
+        client, _, _ = make_client(tmp_path)
+        client.post("/v1/reports", json={"symbol": "GOLD", "horizons": [7]}, headers=AUTH)
+        methods = client.get("/v1/forecasts", headers=AUTH).json()["methods"]
+        assert methods and methods[0]["asset_class_name"] == "драгметаллы"
+        assert all(m["method_name"] != m["method"] for m in methods)
