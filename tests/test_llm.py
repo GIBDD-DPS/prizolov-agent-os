@@ -162,6 +162,15 @@ class TestAnthropicClient:
         with pytest.raises(LLMError, match="Нет соединения"):
             AnthropicClient(model="m", client=sdk).complete(system="s", messages=[])
 
+    def test_empty_balance_is_explained(self):
+        request = httpx2.Request("POST", "https://api.anthropic.com/v1/messages")
+        error = anthropic.BadRequestError(
+            "Your credit balance is too low to access the Anthropic API.",
+            response=httpx2.Response(400, request=request), body=None,
+        )
+        with pytest.raises(LLMError, match="закончились средства"):
+            AnthropicClient(model="m", client=StubSDK(error)).complete(system="s", messages=[])
+
     def test_create_client_uses_settings(self):
         config = Settings(
             api_key="test-key", model="claude-opus-5-5", effort="high", max_tokens=500

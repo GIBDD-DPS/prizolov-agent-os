@@ -86,6 +86,11 @@ class AnthropicClient:
         except anthropic.RateLimitError as e:
             raise LLMError("Превышен лимит запросов к Anthropic API") from e
         except anthropic.BadRequestError as e:
+            if "credit balance" in str(e.message).lower():
+                raise LLMError(
+                    "На счёте Anthropic закончились средства. Пополните баланс в консоли "
+                    "Anthropic: https://console.anthropic.com/settings/billing"
+                ) from e
             raise LLMError(f"Некорректный запрос к Anthropic API: {e.message}") from e
         except anthropic.APIStatusError as e:
             raise LLMError(f"Ошибка Anthropic API ({e.status_code}): {e.message}") from e
