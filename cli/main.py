@@ -104,6 +104,16 @@ def build_parser() -> argparse.ArgumentParser:
     sub.add_parser("mcp", help="MCP-сервер для Claude Desktop, Cursor и других (stdio)")
     accuracy = sub.add_parser("accuracy", help="страница точности прогнозов (HTML)")
     accuracy.add_argument("--out", help="куда сохранить (по умолчанию workspace/reports)")
+    evals = sub.add_parser(
+        "eval", help="проверить агентов на настоящей модели (тратит токены)"
+    )
+    evals.add_argument("ids", nargs="*", help="какие проверки запустить (по умолчанию все)")
+    evals.add_argument("--list", action="store_true", help="показать список проверок")
+    evals.add_argument("--no-judge", action="store_true",
+                       help="без модели-оценщика: только проверки по правилам")
+    evals.add_argument("--max-usd", type=float, default=10.0,
+                       help="остановиться, когда потрачено столько долларов")
+    evals.add_argument("--out", help="папка для отчёта (по умолчанию workspace/reports)")
     sub.add_parser("telegram", help="запустить Telegram-бота (с расписанием)")
     sub.add_parser("scheduler", help="запустить только планировщик задач")
     api = sub.add_parser("api", help="запустить HTTP API (документация: /docs)")
@@ -162,6 +172,9 @@ def main(
     if args.command == "accuracy":
         setup_logging(level=logging.DEBUG if args.verbose else logging.ERROR)
         return run_accuracy(console, args)
+    if args.command == "eval":
+        setup_logging(level=logging.DEBUG if args.verbose else logging.ERROR)
+        return run_eval(console, args, kernel_factory)
     if args.command == "calendar":
         setup_logging(level=logging.DEBUG if args.verbose else logging.ERROR)
         return run_calendar(console, args)
@@ -380,6 +393,69 @@ def run_accuracy(console: Console, args: argparse.Namespace) -> int:
         console.print(f"Сверенных прогнозов пока нет; ожидают срока: {data['pending']}.")
     console.print(f"Страница: {out}")
     return 0
+
+
+def run_eval(
+    console: Console,
+    args: argparse.Namespace,
+    kernel_factory: KernelFactory = Kernel.create,
+    judge_factory: Optional[Callable[[], Any]] = None,
+) -> int:
+    """prizolov eval: проверка агентов на эталонных задачах с настоящей моделью."""
+    from datetime import datetime
+
+    from prizolov_os import evals
+    from prizolov_os.evals.cases import CASES
+    from prizolov_os.llm import create_client
+
+    if args.list:
+        for case in CASES:
+            console.print(f"{case.id:<22} {case.title}")
+        return 0
+    try:
+        cases = evals.select(CASES, args.ids)
+    except evals.EvalError as e:
+        console.print(f"[red]{e}[/]")
+        return 1
+    if judge_factory is None and not _has_credentials():
+        console.print(
+            "[red]Нужен ключ Anthropic: проверки идут на настоящей модели. Добавьте в .env "
+            "строку ANTHROPIC_API_KEY=... или запустите prizolov init.[/]"
+        )
+        return 1
+    judge_llm = None if args.no_judge else (judge_factory or create_client)()
+    console.print(
+        f"Проверок: {len(cases)}, модель {settings.model}, лимит ${args.max_usd:.2f}. "
+        "Это займёт несколько минут."
+    )
+
+    def show(result: Any) -> None:
+        mark = "[green]✓[/]" if result.passed else "[red]✗[/]"
+        failed = [c.name for c in result.checks if not c.ok] or ([result.error] if result.error
+                                                              else [])
+        tail = f" — {'; '.join(failed)}" if failed else ""
+        console.print(f"{mark} {result.case_id} (${result.cost_usd:.3f}){tail}", markup=True,
+                      highlight=False)
+
+    try:
+        results = evals.run_all(cases, kernel_factory=kernel_factory, judge_llm=judge_llm,
+                                max_usd=args.max_usd, on_result=show)
+    except evals.EvalError as e:
+        console.print(f"[red]{e}[/]")
+        return 1
+    out_dir = Path(args.out) if args.out else Path(settings.workspace_dir) / "reports"
+    out_dir.mkdir(parents=True, exist_ok=True)
+    stem = out_dir / f"evals-{datetime.now():%Y%m%d-%H%M}"
+    stem.with_suffix(".md").write_text(evals.to_markdown(results, settings.model),
+                                       encoding="utf-8")
+    stem.with_suffix(".json").write_text(evals.to_json(results, settings.model),
+                                         encoding="utf-8")
+    s = evals.summary(results)
+    console.print(
+        f"Пройдено {s['passed']} из {s['total']} ({s['pass_rate_pct']}%), "
+        f"потрачено ${s['cost_usd']:.2f}. Отчёт: {stem.with_suffix('.md')}"
+    )
+    return 0 if s["passed"] == s["total"] else 1
 
 
 def run_calendar(console: Console, args: argparse.Namespace) -> int:
