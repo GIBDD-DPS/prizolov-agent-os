@@ -184,7 +184,8 @@ class TInvestClient:
         )
         try:
             with urllib.request.urlopen(request, timeout=30) as response:
-                return json.loads(response.read())
+                data: Dict[str, Any] = json.loads(response.read())
+                return data
         except urllib.error.HTTPError as e:
             if e.code in (401, 403):
                 raise PortfolioError("T-Invest API не принял токен: проверьте его") from e
@@ -193,7 +194,9 @@ class TInvestClient:
             raise PortfolioError(f"Нет связи с T-Invest API: {e}") from e
 
     def accounts(self) -> List[Dict[str, Any]]:
-        return self._post("UsersService/GetAccounts", {}).get("accounts", [])
+        accounts: List[Dict[str, Any]] = self._post("UsersService/GetAccounts", {}).get(
+            "accounts", [])
+        return accounts
 
     def positions(self, account_id: Optional[str] = None) -> List[Position]:
         if not account_id:
@@ -223,7 +226,7 @@ class TInvestClient:
             return ""
         data = self._post("InstrumentsService/GetInstrumentBy",
                           {"idType": "INSTRUMENT_ID_TYPE_FIGI", "id": figi})
-        return data.get("instrument", {}).get("ticker", "")
+        return str(data.get("instrument", {}).get("ticker", ""))
 
 
 # --- Анализ ------------------------------------------------------------------
@@ -243,7 +246,9 @@ def _fx(market: MarketData, currency: str, cache: Dict[str, float]) -> float:
 def value_positions(positions: Sequence[Position], market: MarketData) -> Tuple[
         List[PositionValue], List[str]]:
     """Цены, валюта и стоимость в рублях; ошибки по отдельным бумагам - в списке."""
-    values, errors, fx_cache = [], [], {}
+    values: List[PositionValue] = []
+    errors: List[str] = []
+    fx_cache: Dict[str, float] = {}
     for position in positions:
         source = position.source or guess_source(position.symbol)
         try:
@@ -310,7 +315,8 @@ def analyze_portfolio(
         raise PortfolioError("Стоимость портфеля не положительная")
     engine = engine or ForecastEngine()
 
-    rows, by_class = [], {}
+    rows: List[Dict[str, Any]] = []
+    by_class: Dict[str, float] = {}
     for v in sorted(values, key=lambda x: -x.value_rub):
         weight = v.value_rub / total
         by_class[v.asset_class] = by_class.get(v.asset_class, 0.0) + weight

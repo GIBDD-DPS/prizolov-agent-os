@@ -5,7 +5,7 @@
 """Интерактивный чат с Prizolov OS и команды управления."""
 
 import re
-from typing import Callable, Dict
+from typing import Callable, Dict, Optional
 from zoneinfo import ZoneInfo
 
 from rich.console import Console
@@ -13,9 +13,11 @@ from rich.markup import escape
 from rich.table import Table
 
 from prizolov_os.__about__ import HEADER
-from prizolov_os.core.kernel import Kernel
+from prizolov_os.budget import Budget
+from prizolov_os.core.kernel import Kernel, VerificationReport
 from prizolov_os.forecasting import ASSET_CLASSES, METHOD_NAMES
 from prizolov_os.improvement import prompt_diff
+from prizolov_os.knowledge import IndexReport
 from prizolov_os.llm import LLMError
 
 from .render import (
@@ -217,7 +219,7 @@ class ChatApp:
             f"Сегодня потрачено {format_usd(budget.today_spent_usd())}."
         )
 
-    def _budget(self):
+    def _budget(self) -> Budget:
         if self.kernel.budget is None:
             raise ValueError("Учёт расходов не подключён")
         return self.kernel.budget
@@ -266,8 +268,8 @@ class ChatApp:
             )
             return
         task_id = _require_int(rest, f"/schedule {action} N")
-        task = schedules.get(task_id)
-        if task is None:
+        existing = schedules.get(task_id)
+        if existing is None:
             raise ValueError(f"Нет задачи #{task_id}")
         if action == "remove":
             schedules.remove(task_id)
@@ -278,7 +280,7 @@ class ChatApp:
             self.console.print(f"Задача #{task_id}: {state}.")
         elif action == "run":
             self.console.print(f"Выполняю задачу #{task_id}…")
-            result = ScheduleRunner(self.kernel).run(task)
+            result = ScheduleRunner(self.kernel).run(existing)
             self.console.print(escape(result.text))
             if result.report:
                 self.console.print(f"Отчёт: {escape(str(result.report))}")
@@ -298,7 +300,7 @@ class ChatApp:
             + f". Папка: {escape(str(knowledge.root))}"
         )
 
-    def print_index(self, report, quiet: bool = True) -> None:
+    def print_index(self, report: IndexReport, quiet: bool = True) -> None:
         if report.changed:
             parts = []
             if report.added:
@@ -378,7 +380,7 @@ class ChatApp:
         report = self.kernel.verify_forecasts()
         self.print_verification(report, quiet=False)
 
-    def print_verification(self, report, quiet: bool = True) -> None:
+    def print_verification(self, report: VerificationReport, quiet: bool = True) -> None:
         for error in report.errors:
             self.console.print(f"[yellow]Не удалось получить факт: {escape(error)}[/]")
         if report.verified:
@@ -417,7 +419,7 @@ class ChatApp:
             title="Соревнование методов",
         )
 
-        def pct(value):
+        def pct(value: Optional[float]) -> str:
             return "—" if value is None else f"{value * 100:.0f}%"
 
         for row in board:

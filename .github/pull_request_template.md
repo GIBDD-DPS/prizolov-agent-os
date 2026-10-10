@@ -8,6 +8,7 @@ SPDX-License-Identifier: Apache-2.0 -->
 
 - [ ] `python -m pytest`
 - [ ] `ruff check .`
+- [ ] `mypy prizolov_os cli`
 - [ ] `python scripts/stamp_headers.py --check`
 
 Отправляя изменения, я соглашаюсь, что они распространяются по лицензии Apache 2.0

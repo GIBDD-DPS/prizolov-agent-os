@@ -10,7 +10,7 @@ import uuid
 from dataclasses import dataclass, field
 from datetime import date, timedelta
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple, Union
+from typing import Any, Callable, Dict, List, Optional, Tuple, Union
 
 from .. import events as ev
 from ..agent import Agent, AgentResult, add_usage
@@ -344,7 +344,7 @@ class Kernel:
             self.store.add_lesson(
                 "market_analyst",
                 f"{marker} часто не сбываются: в 80%-й интервал попало только "
-                f"{accuracy.pass_rate_80 * 100:.0f}% из {accuracy.n}. Подчёркивай высокую "
+                f"{(accuracy.pass_rate_80 or 0) * 100:.0f}% из {accuracy.n}. Подчёркивай высокую "
                 "неопределённость и не делай уверенных выводов по таким прогнозам.",
                 "forecast_accuracy",
             )
@@ -467,7 +467,7 @@ class Kernel:
             requires_approval=True,
         )
 
-    def _lessons_provider(self, agent: str):
+    def _lessons_provider(self, agent: str) -> Callable[[str], str]:
         def provide(query: str) -> str:
             return format_lessons(self.store.relevant_lessons(agent, query))
 

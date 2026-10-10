@@ -91,7 +91,7 @@ def _http_get(url: str) -> bytes:
     request = urllib.request.Request(url, headers={"User-Agent": USER_AGENT})
     try:
         with urllib.request.urlopen(request, timeout=settings.timeout) as response:
-            return response.read()
+            return bytes(response.read())
     except urllib.error.HTTPError as e:
         raise TenderSearchError(f"Площадка закупок ответила ошибкой {e.code}") from e
     except (urllib.error.URLError, TimeoutError) as e:

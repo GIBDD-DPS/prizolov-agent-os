@@ -40,7 +40,7 @@ class PTBIO:
                 raise
             # Модель могла вернуть разметку, которую Telegram не принимает: шлём текстом.
             message = self._call(self.bot.send_message(chat_id, _strip_tags(text)))
-        return message.message_id
+        return int(message.message_id)
 
     def edit_text(self, chat_id: int, message_id: int, text: str) -> None:
         self._call(self.bot.edit_message_text(text, chat_id=chat_id, message_id=message_id))
@@ -52,7 +52,7 @@ class PTBIO:
             [[InlineKeyboardButton(label, callback_data=data) for label, data in buttons]]
         )
         message = self._call(self.bot.send_message(chat_id, text, reply_markup=markup))
-        return message.message_id
+        return int(message.message_id)
 
     def send_photo(self, chat_id: int, path: Path, caption: str = "") -> None:
         with open(path, "rb") as photo:
@@ -88,7 +88,8 @@ def build_application(token: str, allowed_ids: Set[int], workspace_dir: Path) ->
                 io, Kernel.create, allowed_ids, workspace_dir
             )
             holder["scheduler"] = holder["service"].start_scheduler()
-        return holder["service"]
+        svc: TelegramService = holder["service"]
+        return svc
 
     async def on_text(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         message = update.effective_message
@@ -96,9 +97,10 @@ def build_application(token: str, allowed_ids: Set[int], workspace_dir: Path) ->
         if message is None or message.text is None:
             return
         svc = service()
-        await asyncio.to_thread(
-            svc.handle_text, message.chat_id, user.id if user else None, message.text
-        )
+        if user is None:
+            await asyncio.to_thread(svc.deny, message.chat_id, None)
+            return
+        await asyncio.to_thread(svc.handle_text, message.chat_id, user.id, message.text)
 
     async def on_document(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         message = update.effective_message

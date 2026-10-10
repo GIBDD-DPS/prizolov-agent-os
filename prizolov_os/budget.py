@@ -137,7 +137,7 @@ class Budget:
         return [dict(r) for r in rows]
 
     def total_spent_usd(self) -> float:
-        return self.store.query("SELECT COALESCE(SUM(usd), 0) AS s FROM spend")[0]["s"]
+        return float(self.store.query("SELECT COALESCE(SUM(usd), 0) AS s FROM spend")[0]["s"])
 
 
 class MeteredLLM:

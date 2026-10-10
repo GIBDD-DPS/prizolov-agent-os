@@ -156,6 +156,13 @@ class Store:
     def query(self, sql: str, params: tuple = ()) -> List[sqlite3.Row]:
         return self._query(sql, params)
 
+    def insert(self, sql: str, params: tuple = ()) -> int:
+        """INSERT и id новой строки."""
+        row_id = self._execute(sql, params).lastrowid
+        if row_id is None:
+            raise RuntimeError("База не вернула id новой записи")
+        return row_id
+
     def _execute(self, sql: str, params: tuple = ()) -> sqlite3.Cursor:
         with self._lock, self._conn:
             return self._conn.execute(sql, params)
@@ -203,10 +210,10 @@ class Store:
             raise ValueError("Факт не может быть пустым")
         existing = self._query("SELECT id FROM facts WHERE text = ?", (text,))
         if existing:
-            return existing[0]["id"]
-        return self._execute(
+            return int(existing[0]["id"])
+        return self.insert(
             "INSERT INTO facts (text, created_at) VALUES (?, ?)", (text, _now())
-        ).lastrowid
+        )
 
     def list_facts(self) -> List[Fact]:
         return [Fact(**dict(r)) for r in self._query("SELECT * FROM facts ORDER BY id")]
@@ -224,10 +231,10 @@ class Store:
         text = text.strip()
         if not text:
             raise ValueError("Урок не может быть пустым")
-        return self._execute(
+        return self.insert(
             "INSERT INTO lessons (agent, text, source, created_at) VALUES (?, ?, ?, ?)",
             (agent, text, source, _now()),
-        ).lastrowid
+        )
 
     def list_lessons(self, agent: Optional[str] = None) -> List[Lesson]:
         if agent is None:
@@ -250,18 +257,18 @@ class Store:
             "WHERE agent = ? AND status IN (?, ?)", (agent, ACTIVE, ARCHIVED)
         )
         since = rows[0]["t"] or ""
-        return self._query(
+        return int(self._query(
             "SELECT COUNT(*) AS n FROM lessons WHERE agent = ? AND created_at > ?",
             (agent, since),
-        )[0]["n"]
+        )[0]["n"])
 
     # --- Версии промптов -----------------------------------------------------
 
     def propose_prompt(self, agent: str, prompt: str, note: str = "") -> int:
-        return self._execute(
+        return self.insert(
             "INSERT INTO prompt_versions (agent, prompt, status, note, created_at) "
             "VALUES (?, ?, ?, ?, ?)", (agent, prompt, PROPOSED, note, _now())
-        ).lastrowid
+        )
 
     def get_prompt_version(self, version_id: int) -> Optional[PromptVersion]:
         rows = self._query("SELECT * FROM prompt_versions WHERE id = ?", (version_id,))

@@ -54,7 +54,7 @@ class LessonExtractor:
         data, usage = ask_json(self.llm, EXTRACTOR_SYSTEM, prompt, schema)
         if not data or not str(data.get("lesson", "")).strip():
             return None
-        agent = data.get("agent") if data.get("agent") in agents else agents[0]
+        agent = str(data["agent"]) if data.get("agent") in agents else agents[0]
         return ExtractedLesson(agent=agent, text=str(data["lesson"]).strip(), usage=usage)
 
 

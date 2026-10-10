@@ -76,5 +76,5 @@ def _last_user_text(messages: List[Dict[str, Any]]) -> str:
         content = message.get("content")
         if isinstance(content, str):
             return content
-        return " ".join(b.get("text", "") for b in content if b.get("type") == "text")
+        return " ".join(b.get("text", "") for b in content or [] if b.get("type") == "text")
     return ""

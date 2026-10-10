@@ -17,7 +17,7 @@ from collections import OrderedDict
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
-from typing import Any, Callable, Dict, List, Optional, Sequence
+from typing import TYPE_CHECKING, Any, Callable, Dict, List, Optional, Sequence
 
 from prizolov_os import events as ev
 from prizolov_os.core.kernel import Kernel
@@ -28,6 +28,9 @@ from prizolov_os.scheduler import ScheduledTask, ScheduleRunner, describe, repor
 from ..render import format_params, short
 from ..telegram.format import progress_line
 from ..telegram.service import INBOX, MAX_UPLOAD_BYTES, UPLOAD_SUFFIXES, _safe_name, _unique
+
+if TYPE_CHECKING:
+    from prizolov_os.payment_calendar import PaymentCalendar
 
 logger = logging.getLogger(__name__)
 
@@ -374,7 +377,7 @@ class ApiService:
     # --- Деньги: выписки и платёжный календарь -------------------------------
 
     @property
-    def calendar(self) -> Any:
+    def calendar(self) -> "PaymentCalendar":
         from prizolov_os.payment_calendar import PaymentCalendar
 
         return PaymentCalendar(self.kernel.store)

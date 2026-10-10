@@ -154,7 +154,7 @@ class ForecastJournal:
         probability_up: Optional[float],
     ) -> int:
         target = base_date + timedelta(days=horizon_days)
-        return self.store.execute(
+        return self.store.insert(
             "INSERT INTO forecasts (created_at, kind, source, symbol, asset_class, bucket, "
             "method, horizon_days, base_date, target_date, base_value, median, raw_median, "
             "base_spread, low_80, high_80, low_95, high_95, probability_up) "
@@ -162,7 +162,7 @@ class ForecastJournal:
             (_now(), kind, source, symbol, asset_class, bucket, method, horizon_days,
              base_date.isoformat(), target.isoformat(), base_value, median, raw_median,
              base_spread, low_80, high_80, low_95, high_95, probability_up),
-        ).lastrowid
+        )
 
     def save_backtest(
         self, source: str, symbol: str, asset_class: str, bucket: str,

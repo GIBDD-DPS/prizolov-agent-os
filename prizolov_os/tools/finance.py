@@ -7,8 +7,8 @@
 import csv
 import io
 import re
-from datetime import datetime
-from typing import Any, Dict, List, Optional
+from datetime import date, datetime
+from typing import Any, Dict, List, Optional, Tuple
 
 from ..analytics import analyze_cashflow, analyze_series
 from ..analytics.cashflow import parse_amount, parse_date
@@ -167,7 +167,7 @@ def _check_horizon(horizon_days: int) -> None:
         raise ValueError(f"Горизонт прогноза должен быть от 1 до {MAX_HORIZON_DAYS} дней")
 
 
-def parse_price_csv(text: str):
+def parse_price_csv(text: str) -> Tuple[List[date], List[float]]:
     text = text.lstrip("﻿")
     try:
         dialect = csv.Sniffer().sniff(text[:4096], delimiters=",;\t")
@@ -183,7 +183,7 @@ def parse_price_csv(text: str):
         raise ValueError(
             f"Нужны колонки даты и цены (date/дата и close/цена). Найдены: {', '.join(header)}"
         )
-    pairs = {}
+    pairs: Dict[date, float] = {}
     for line_no, row in enumerate(rows[1:], start=2):
         try:
             if row[price_col].strip():

@@ -106,13 +106,13 @@ class PaymentCalendar:
         if until and until < due_date:
             raise ValueError("Дата окончания раньше даты первого платежа")
         category = category or categorize(Transaction(due_date, amount, title))
-        payment_id = self.store.execute(
+        payment_id = self.store.insert(
             "INSERT INTO planned_payments (title, amount, due_date, repeat, until, category, "
             "created_at) VALUES (?, ?, ?, ?, ?, ?, ?)",
             (title, float(amount), due_date.isoformat(), repeat,
              until.isoformat() if until else None, category,
              datetime.now(timezone.utc).isoformat()),
-        ).lastrowid
+        )
         return self.get(payment_id)  # type: ignore[return-value]
 
     def get(self, payment_id: int) -> Optional[PlannedPayment]:
