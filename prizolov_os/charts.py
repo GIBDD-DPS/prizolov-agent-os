@@ -110,7 +110,12 @@ def price_forecast_chart(
 
     last_date, last = dates[-1], closes[-1]
     horizon = forecast["horizon_days"]
-    fan_dates, median, l80, h80, l95, h95 = [], [], [], [], [], []
+    fan_dates: List[Any] = []
+    median: List[float] = []
+    l80: List[float] = []
+    h80: List[float] = []
+    l95: List[float] = []
+    h95: List[float] = []
     for i in range(FAN_POINTS + 1):
         share = i / FAN_POINTS
         fan_dates.append(last_date + timedelta(days=horizon * share))

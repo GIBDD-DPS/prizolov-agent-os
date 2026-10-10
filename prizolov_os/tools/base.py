@@ -8,7 +8,7 @@ import json
 import logging
 import threading
 from dataclasses import dataclass, field
-from typing import Any, Callable, Dict, Iterable, List, Optional, Union
+from typing import Any, Callable, Dict, Iterable, List, Optional, Tuple, Union
 
 from ..llm import ToolCall
 from ..security import scan, wrap_untrusted
@@ -118,7 +118,7 @@ def make_schema(properties: Dict[str, Dict[str, Any]]) -> Dict[str, Any]:
     }
 
 
-_JSON_TYPES = {
+_JSON_TYPES: Dict[str, Union[type, Tuple[type, ...]]] = {
     "string": str,
     "integer": int,
     "number": (int, float),

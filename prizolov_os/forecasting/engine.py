@@ -174,8 +174,8 @@ class ForecastEngine:
             "verified_live": live.as_dict(),
             "summary": (
                 f"Сверено прогнозов остатка: {live.n}."
-                + (f" В 80%-й интервал попало {live.pass_rate_80 * 100:.0f}%, средняя ошибка "
-                   f"{live.mean_abs_error_pct:.1f}%." if live.n else
+                + (f" В 80%-й интервал попало {(live.pass_rate_80 or 0) * 100:.0f}%, "
+                   f"средняя ошибка {live.mean_abs_error_pct:.1f}%." if live.n else
                    " Точность станет известна, когда загрузите выписку за прогнозный период.")
             ),
         }

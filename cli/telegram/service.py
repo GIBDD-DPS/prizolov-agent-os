@@ -18,7 +18,7 @@ import time
 import uuid
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Callable, Dict, List, Optional, Protocol, Set, Tuple
+from typing import Any, Callable, Dict, List, Optional, Protocol, Sequence, Set, Tuple
 
 from rich.console import Console
 
@@ -225,7 +225,7 @@ class TelegramService:
 
     # --- Расписание ----------------------------------------------------------
 
-    def notify(self, chat_id: int, text: str, files: List[Path]) -> None:
+    def notify(self, chat_id: int, text: str, files: Sequence[Path]) -> None:
         """Доставка результата задачи по расписанию в чат."""
         for part in split_message(text):
             self.io.send_text(chat_id, to_telegram_html(part), html=True)

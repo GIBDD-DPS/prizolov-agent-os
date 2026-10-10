@@ -51,7 +51,7 @@ class MarketReport:
 
     @property
     def last_price(self) -> float:
-        return self.summary["last_price"]
+        return float(self.summary["last_price"])
 
     @property
     def title(self) -> str:

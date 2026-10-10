@@ -229,12 +229,12 @@ class ScheduleStore:
         cron = to_cron(schedule)
         now = now or datetime.now(timezone.utc)
         first = next_run(cron, now, self.tz)
-        task_id = self.store.execute(
+        task_id = self.store.insert(
             "INSERT INTO scheduled_tasks (schedule, cron, kind, payload, chat_id, builtin, "
             "created_at, next_run) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
             (schedule.strip(), cron, kind, payload.strip(), chat_id, int(builtin),
              now.isoformat(), first.isoformat()),
-        ).lastrowid
+        )
         return self.get(task_id)  # type: ignore[return-value]
 
     def get(self, task_id: int) -> Optional[ScheduledTask]:

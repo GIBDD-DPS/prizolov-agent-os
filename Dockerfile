@@ -9,7 +9,10 @@
 #   docker run --env-file .env -p 8800:8800 -v prizolov-data:/data prizolov-os
 #   docker run --env-file .env -v prizolov-data:/data prizolov-os prizolov telegram
 
-FROM python:3.12-slim
+# Базовый образ можно взять из зеркала, если Docker Hub ограничивает число загрузок:
+#   docker build --build-arg BASE_IMAGE=mirror.gcr.io/library/python:3.12-slim .
+ARG BASE_IMAGE=python:3.12-slim
+FROM ${BASE_IMAGE}
 
 LABEL org.opencontainers.image.title="Prizolov Agent OS" \
       org.opencontainers.image.version="0.3.0" \

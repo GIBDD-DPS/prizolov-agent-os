@@ -166,3 +166,40 @@ def test_self_check_progress(tmp_path):
     ])
     _, out = session.run("--self-check", "complex", "run", "задача")
     assert "Самопроверка: 9/10" in out
+
+
+@pytest.mark.parametrize("argv, target", [
+    (["init"], "cli.onboarding.run_init"),
+    (["doctor", "--offline"], "cli.onboarding.run_doctor"),
+    (["report", "GOLD"], "cli.main.run_report"),
+    (["cashflow", "x.csv"], "cli.main.run_cashflow"),
+    (["portfolio", "p.csv"], "cli.main.run_portfolio"),
+    (["mcp"], "cli.mcp_server.run"),
+    (["tenders", "мебель"], "cli.main.run_tenders"),
+    (["accuracy"], "cli.main.run_accuracy"),
+    (["calendar", "list"], "cli.main.run_calendar"),
+    (["scheduler"], "cli.main.run_scheduler"),
+    (["api", "--port", "9"], "cli.api.server.run"),
+    (["telegram"], "cli.telegram.bot.run"),
+])
+def test_each_command_reaches_its_handler(monkeypatch, argv, target):
+    if target == "cli.api.server.run":
+        pytest.importorskip("fastapi")
+    if target == "cli.telegram.bot.run":
+        pytest.importorskip("telegram")
+    module_name, _, func = target.rpartition(".")
+    module = __import__(module_name, fromlist=[func])
+    calls = []
+    monkeypatch.setattr(module, func, lambda *a, **k: calls.append(a) or 7)
+    console = Console(file=io.StringIO())
+    assert main(argv, console=console, ask=lambda prompt: "") == 7
+    assert len(calls) == 1
+
+
+def test_bad_settings_stop_commands(monkeypatch):
+    from prizolov_os.config import settings
+
+    monkeypatch.setattr(settings, "effort", "turbo")
+    out = io.StringIO()
+    assert main(["report", "GOLD"], console=Console(file=out, width=200)) == 1
+    assert "Ошибка конфигурации" in out.getvalue()

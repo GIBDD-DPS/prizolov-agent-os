@@ -21,7 +21,9 @@ MAX_READ_BYTES = 200_000
 MAX_POWER = 1000
 MAX_RESULT_DIGITS = 10_000
 
-_BINARY_OPS: Dict[type, Callable[[Any, Any], Any]] = {
+Number = Union[int, float]
+
+_BINARY_OPS: Dict[type, Callable[[Any, Any], Number]] = {
     ast.Add: operator.add,
     ast.Sub: operator.sub,
     ast.Mult: operator.mul,
@@ -30,8 +32,8 @@ _BINARY_OPS: Dict[type, Callable[[Any, Any], Any]] = {
     ast.Mod: operator.mod,
     ast.Pow: operator.pow,
 }
-_UNARY_OPS: Dict[type, Callable[[Any], Any]] = {ast.UAdd: operator.pos, ast.USub: operator.neg}
-_FUNCTIONS: Dict[str, Callable[..., Any]] = {
+_UNARY_OPS: Dict[type, Callable[[Any], Number]] = {ast.UAdd: operator.pos, ast.USub: operator.neg}
+_FUNCTIONS: Dict[str, Callable[..., Number]] = {
     "sqrt": math.sqrt,
     "log": math.log,
     "log10": math.log10,
@@ -46,8 +48,6 @@ _FUNCTIONS: Dict[str, Callable[..., Any]] = {
 }
 _CONSTANTS = {"pi": math.pi, "e": math.e}
 
-Number = Union[int, float]
-
 
 def calculate(expression: str) -> str:
     """Безопасно вычисляет арифметическое выражение (без eval)."""
@@ -56,8 +56,11 @@ def calculate(expression: str) -> str:
 
 
 def _evaluate(node: ast.AST) -> Number:
-    if isinstance(node, ast.Constant) and type(node.value) in (int, float):
-        return node.value
+    # bool - подкласс int, но True/False в выражении не допускаются.
+    value = getattr(node, "value", None)
+    if isinstance(node, ast.Constant) and isinstance(value, (int, float)) \
+            and not isinstance(value, bool):
+        return value
     if isinstance(node, ast.Name) and node.id in _CONSTANTS:
         return _CONSTANTS[node.id]
     if isinstance(node, ast.BinOp) and type(node.op) in _BINARY_OPS:

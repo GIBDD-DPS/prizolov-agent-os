@@ -15,7 +15,7 @@ import urllib.request
 import xml.etree.ElementTree as ET
 from dataclasses import dataclass, field
 from datetime import date, datetime, timedelta, timezone
-from typing import Callable, Dict, List, Optional, Tuple
+from typing import Any, Callable, Dict, List, Optional, Tuple
 
 from ..__about__ import USER_AGENT
 
@@ -58,7 +58,7 @@ def http_get(url: str, timeout: Optional[float] = None) -> bytes:
     request = urllib.request.Request(url, headers={"User-Agent": USER_AGENT})
     try:
         with urllib.request.urlopen(request, timeout=timeout) as response:
-            return response.read()
+            return bytes(response.read())
     except urllib.error.HTTPError as e:
         raise MarketDataError(f"Источник ответил ошибкой {e.code}") from e
     except (urllib.error.URLError, TimeoutError) as e:
@@ -96,7 +96,8 @@ class MarketData:
 
     def _json(self, url: str) -> dict:
         try:
-            return json.loads(self._fetch(url))
+            data: Dict[Any, Any] = json.loads(self._fetch(url))
+            return data
         except json.JSONDecodeError as e:
             raise MarketDataError("Источник вернул некорректный ответ") from e
 
