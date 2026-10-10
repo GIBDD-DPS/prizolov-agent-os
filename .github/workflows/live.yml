@@ -1,0 +1,52 @@
+# Prizolov Agent OS 0.3.0 | Author: Dm.Andreyanov | Brand: Prizolov Lab | © 2026
+# SPDX-FileCopyrightText: 2026 Dm.Andreyanov / Prizolov Lab
+# SPDX-License-Identifier: Apache-2.0
+
+# Ночная проверка живых источников: Yahoo, Мосбиржа, ЦБ, ЕИС и (если задан секрет
+# PRIZOLOV_TINVEST_TOKEN, только чтение) T-Invest. Ловит смену формата ответа,
+# которую обычные тесты без сети не видят. Недоступный из сети GitHub источник
+# пропускается с причиной в сводке; задача падает, только если ответ не разобрать.
+# О падении ночной задачи GitHub пишет владельцу репозитория на почту.
+
+name: Живые источники
+
+on:
+  schedule:
+    - cron: "23 2 * * *"  # каждый день, 05:23 по Москве
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  live:
+    name: Живые источники
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      PRIZOLOV_LIVE: "1"
+      PRIZOLOV_TIMEOUT: "30"
+      PRIZOLOV_TINVEST_TOKEN: ${{ secrets.PRIZOLOV_TINVEST_TOKEN }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: pyproject.toml
+      - name: Установить пакет
+        run: pip install -e . "pytest>=9.1.1"
+      - name: Проверить источники
+        run: |
+          set -o pipefail
+          python -m pytest tests/test_live.py -p no:cacheprovider -rs --tb=short \
+            | tee live.log
+      - name: Сводка
+        if: always()
+        run: |
+          {
+            echo "## Живые источники"
+            echo '```'
+            grep -E "PASSED|FAILED|SKIPPED|passed|failed" live.log || true
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
