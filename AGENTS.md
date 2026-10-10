@@ -41,7 +41,8 @@ Prizolov Agent OS — команда ИИ-агентов на Claude (Anthropic)
 | `cli/api/` | HTTP API (FastAPI) и веб-интерфейс `web/index.html` |
 | `cli/mcp_server.py` | MCP-сервер (`prizolov mcp`) |
 | `cli/telegram/` | Telegram-бот |
-| `tests/` | тесты (pytest) |
+| `prizolov_os/evals/` | проверка агентов на настоящей модели (`prizolov eval`) |
+| `tests/` | тесты (pytest); `test_live.py` - живые источники (`PRIZOLOV_LIVE=1`) |
 | `legacy/` | прежний код, не трогать и не импортировать |
 
 Подробнее: [docs/architecture.md](docs/architecture.md).
@@ -54,6 +55,7 @@ python -m pytest -q                          # все тесты, сеть и к
 ruff check .                                 # стиль (E, F, W, I; строка до 100 символов)
 python -m mypy prizolov_os cli               # типы
 pre-commit run --all-files                   # всё сразу, как перед коммитом
+prizolov eval cash-gap                       # агенты на настоящей модели (нужен ключ, тратит токены)
 python scripts/stamp_headers.py              # проставить шапки авторства
 python scripts/stamp_headers.py --check      # проверить шапки (как в CI)
 ```
@@ -94,6 +96,8 @@ python scripts/stamp_headers.py --check      # проверить шапки (к
 
 ## Как добавить…
 
+- **Проверку агента.** `EvalCase` в `prizolov_os/evals/cases.py` (см.
+  [docs/quality.md](docs/quality.md)); после правки промптов прогоните `prizolov eval`.
 - **Инструмент агенту.** `Tool(name, description, input_schema=make_schema({...}),
   handler=...)` в `prizolov_os/tools/`, подключение в `prizolov_os/agents/specialists.py`,
   тест через `FakeLLMClient`.

@@ -420,6 +420,7 @@ print(to_markdown(report))
 - [docs/configuration.md](docs/configuration.md) — все настройки `.env`.
 - [docs/api.md](docs/api.md) — HTTP API.
 - [docs/mcp.md](docs/mcp.md) — MCP-сервер для Claude Desktop и Cursor.
+- [docs/quality.md](docs/quality.md) — проверка агентов на настоящей модели и живых источников.
 - [examples/](examples/) — демо-данные и пошаговые примеры.
 - [CHANGELOG.md](CHANGELOG.md) — что нового; [ROADMAP.md](ROADMAP.md) — что дальше.
 
@@ -431,12 +432,16 @@ python -m pytest                                # тесты: сеть и клю
 ruff check .                                    # стиль кода
 python -m mypy prizolov_os cli                  # типы
 python scripts/stamp_headers.py                 # шапки авторства во всех файлах
+prizolov eval                                   # агенты на настоящей модели (тратит токены)
+PRIZOLOV_LIVE=1 python -m pytest tests/test_live.py  # живые источники данных
 ```
 
 Как устроен репозиторий:
 
 - **CI на GitHub Actions** при каждом push и pull request запускает ruff, проверку
-  шапок авторства, тесты на Python 3.10–3.13 и сборку Docker-образа.
+  шапок авторства, тесты на Python 3.10–3.13 и сборку Docker-образа. Раз в неделю
+  агенты проверяются на настоящей модели, каждую ночь — живые источники данных
+  ([docs/quality.md](docs/quality.md)).
 - **Выпуск версии** — по тегу `vX.Y.Z`: пакет публикуется в PyPI, образ — в
   GitHub Container Registry, на GitHub создаётся релиз (`.github/workflows/release.yml`).
 - **Версия и авторство** задаются только в `prizolov_os/__about__.py`; после
