@@ -67,6 +67,15 @@ class TestFacts:
         with pytest.raises(ValueError):
             store.add_fact("  ")
 
+    def test_remember_and_recall_tools(self, store):
+        from prizolov_os.tools import memory_tools
+
+        tools = {t.name: t for t in memory_tools(store)}
+        assert tools["remember"].handler(fact="Компания работает по УСН 6%") == "Запомнено (#1)"
+        assert tools["recall"].handler(query="УСН") == "- Компания работает по УСН 6%"
+        assert tools["recall"].handler(query="аренда") == "В памяти ничего не найдено"
+        assert tools["recall"].untrusted
+
 
 class TestLessons:
     def test_relevant_lessons_by_agent(self, store):
