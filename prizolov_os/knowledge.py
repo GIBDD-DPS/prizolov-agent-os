@@ -111,7 +111,8 @@ class KnowledgeBase:
             if hidden or any(p.startswith(".") or p in SKIP_DIRS for p in parts[:-1]):
                 continue
             if file.is_file() and (file.suffix.lower() in TEXT_SUFFIXES or is_document(file)):
-                files.append(file)
+                if not _is_bank_export(file):
+                    files.append(file)
         return files
 
     def _index_file(
@@ -170,6 +171,14 @@ class KnowledgeBase:
             Hit(r["path"], r["location"], r["body"][:MAX_RESULT_CHARS], -r["score"])
             for r in rows
         ]
+
+
+def _is_bank_export(file: Path) -> bool:
+    """Выписки клиент-банка для 1С - это данные для анализа, а не документы для поиска."""
+    if file.suffix.lower() != ".txt":
+        return False
+    with file.open("rb") as handle:
+        return handle.read(20) == b"1CClientBankExchange"
 
 
 def build_match(query: str) -> Optional[str]:

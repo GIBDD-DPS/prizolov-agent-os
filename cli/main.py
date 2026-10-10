@@ -11,7 +11,12 @@
     prizolov run "задача"          одна задача
     prizolov sessions              сохранённые диалоги
     prizolov report GOLD           отчёт по активу без Claude
-    prizolov cashflow bank.csv     анализ выписки без Claude
+    prizolov cashflow bank.csv     анализ выписки без Claude (1С, CSV, Excel)
+    prizolov calendar              платёжный календарь
+    prizolov accuracy              страница точности прогнозов
+    prizolov portfolio мой.csv     портфель: риск, стресс-тесты, прогнозы
+    prizolov tenders мебель        поиск госзакупок
+    prizolov mcp                   MCP-сервер для Claude Desktop и Cursor
     prizolov telegram              Telegram-бот
     prizolov api                   HTTP API
 """
@@ -65,9 +70,40 @@ def build_parser() -> argparse.ArgumentParser:
     cashflow = sub.add_parser(
         "cashflow", help="анализ выписки без Claude: остаток, кассовый разрыв, график"
     )
-    cashflow.add_argument("file", help="выписка: CSV или Excel (дата, сумма, назначение)")
-    cashflow.add_argument("--balance", type=float, default=0.0, help="остаток на начало выписки")
+    cashflow.add_argument(
+        "file", help="выписка: выгрузка клиент-банка для 1С (.txt), CSV или Excel"
+    )
+    cashflow.add_argument(
+        "--balance", type=float, default=None,
+        help="остаток на начало выписки (для 1С берётся из файла)",
+    )
     cashflow.add_argument("--days", type=int, default=30, help="горизонт прогноза, дней")
+    calendar = sub.add_parser("calendar", help="платёжный календарь: плановые платежи")
+    calendar_sub = calendar.add_subparsers(dest="action")
+    calendar_sub.add_parser("list", help="список плановых платежей")
+    add = calendar_sub.add_parser("add", help="добавить платёж (минус) или поступление (плюс)")
+    add.add_argument("title", help="что за платёж: «Аренда офиса»")
+    add.add_argument("amount", type=float, help="сумма: платёж -180000, поступление 250000")
+    add.add_argument("date", help="дата первого платежа: 2026-11-01 или 01.11.2026")
+    add.add_argument("--repeat", default="разово",
+                     help="разово, еженедельно, ежемесячно, ежеквартально")
+    add.add_argument("--until", help="дата окончания повторов")
+    remove = calendar_sub.add_parser("remove", help="удалить плановый платёж")
+    remove.add_argument("id", type=int)
+    portfolio = sub.add_parser(
+        "portfolio", help="портфель инвестора: риск, стресс-тесты, прогнозы (без Claude)"
+    )
+    portfolio.add_argument("file", nargs="?", help="CSV или Excel: тикер, количество[, источник]")
+    portfolio.add_argument("--tinvest", action="store_true",
+                           help="взять позиции из брокерского счёта T-Invest (нужен токен)")
+    portfolio.add_argument("--days", type=int, default=30, help="горизонт прогноза, дней")
+    tenders = sub.add_parser("tenders", help="поиск госзакупок 44-ФЗ / 223-ФЗ (без Claude)")
+    tenders.add_argument("query", nargs="+", help="что ищем: «поставка офисной мебели»")
+    tenders.add_argument("--max-price", type=float, default=0, help="максимальная цена, руб.")
+    tenders.add_argument("--new", action="store_true", help="только ещё не показанные")
+    sub.add_parser("mcp", help="MCP-сервер для Claude Desktop, Cursor и других (stdio)")
+    accuracy = sub.add_parser("accuracy", help="страница точности прогнозов (HTML)")
+    accuracy.add_argument("--out", help="куда сохранить (по умолчанию workspace/reports)")
     sub.add_parser("telegram", help="запустить Telegram-бота (с расписанием)")
     sub.add_parser("scheduler", help="запустить только планировщик задач")
     api = sub.add_parser("api", help="запустить HTTP API (документация: /docs)")
@@ -113,6 +149,22 @@ def main(
     if args.command == "cashflow":
         setup_logging(level=logging.DEBUG if args.verbose else logging.ERROR)
         return run_cashflow(console, args)
+    if args.command == "portfolio":
+        setup_logging(level=logging.DEBUG if args.verbose else logging.ERROR)
+        return run_portfolio(console, args)
+    if args.command == "mcp":
+        from .mcp_server import run as run_mcp
+
+        return run_mcp()
+    if args.command == "tenders":
+        setup_logging(level=logging.DEBUG if args.verbose else logging.ERROR)
+        return run_tenders(console, args)
+    if args.command == "accuracy":
+        setup_logging(level=logging.DEBUG if args.verbose else logging.ERROR)
+        return run_accuracy(console, args)
+    if args.command == "calendar":
+        setup_logging(level=logging.DEBUG if args.verbose else logging.ERROR)
+        return run_calendar(console, args)
     if args.command == "scheduler":
         setup_logging(level=logging.DEBUG if args.verbose else logging.INFO)
         return run_scheduler(console, kernel_factory)
@@ -202,18 +254,28 @@ def run_report(console: Console, args: argparse.Namespace, market: Any = None) -
 def run_cashflow(console: Console, args: argparse.Namespace) -> int:
     """prizolov cashflow: анализ выписки и прогноз остатка без участия модели."""
     from prizolov_os import charts
-    from prizolov_os.analytics import analyze_cashflow, parse_cashflow_csv
-    from prizolov_os.tools.builtin import Workspace
+    from prizolov_os.analytics import analyze_cashflow
+    from prizolov_os.analytics.categories import by_category
+    from prizolov_os.analytics.statements import load_statement
+    from prizolov_os.memory import Store
+    from prizolov_os.payment_calendar import PaymentCalendar, project
 
-    from .render import print_cashflow
+    from .render import print_cashflow, print_payment_calendar
 
     if not 1 <= args.days <= 365:
         console.print("[red]--days: от 1 до 365[/]")
         return 1
     path = Path(args.file)
     try:
-        transactions = parse_cashflow_csv(Workspace(path.parent).read_table(path.name))
-        analysis = analyze_cashflow(transactions, args.balance, args.days)
+        statement = load_statement(path)
+        transactions = statement.transactions
+        if args.balance is not None:
+            opening = args.balance
+        else:
+            opening = statement.opening_balance or 0.0
+        analysis = analyze_cashflow(transactions, opening, args.days)
+        planned = PaymentCalendar(Store(settings.db_path)).list()
+        plan = project(transactions, opening, planned, args.days) if planned else None
     except (OSError, ValueError) as e:
         console.print(f"[red]{e}[/]")
         return 1
@@ -221,11 +283,133 @@ def run_cashflow(console: Console, args: argparse.Namespace) -> int:
     out.mkdir(parents=True, exist_ok=True)
     stem = "".join(c if c.isalnum() else "_" for c in path.stem)
     balance = charts.cashflow_forecast_chart(
-        out / f"cashflow-{stem}.png", transactions, args.balance, analysis["forecast"]
+        out / f"cashflow-{stem}.png", transactions, opening, analysis["forecast"]
     )
     monthly = charts.monthly_flows_chart(out / f"cashflow-{stem}-months.png", analysis["monthly"])
-    print_cashflow(console, analysis)
+    if statement.source_format == "1c":
+        source = "выписка 1С" + (", остаток на начало из файла" if args.balance is None
+                                 and statement.opening_balance is not None else "")
+        console.print(f"[dim]{source}[/]")
+    print_cashflow(console, analysis, by_category(transactions))
+    if plan is not None:
+        print_payment_calendar(console, plan)
+    else:
+        console.print("[dim]Добавьте плановые платежи (prizolov calendar add), и прогноз "
+                      "покажет день кассового разрыва.[/]")
     console.print(f"\nГрафики: {balance}\n         {monthly}")
+    return 0
+
+
+def run_portfolio(console: Console, args: argparse.Namespace, market: Any = None) -> int:
+    """prizolov portfolio: анализ портфеля без участия модели."""
+    from prizolov_os.forecasting import ForecastEngine
+    from prizolov_os.market import MarketData
+    from prizolov_os.portfolio import (
+        PortfolioError,
+        TInvestClient,
+        analyze_portfolio,
+        load_portfolio,
+    )
+
+    from .render import print_portfolio
+
+    if not args.file and not args.tinvest:
+        console.print("[red]Укажите файл (prizolov portfolio мой.csv) или --tinvest[/]")
+        return 1
+    if not 1 <= args.days <= 365:
+        console.print("[red]--days: от 1 до 365[/]")
+        return 1
+    try:
+        if args.tinvest:
+            positions = TInvestClient(settings.tinvest_token or "").positions()
+        else:
+            positions = load_portfolio(Path(args.file))
+        result = analyze_portfolio(positions, market or MarketData(), ForecastEngine(),
+                                   args.days)
+    except (OSError, PortfolioError, ValueError) as e:
+        console.print(f"[red]{e}[/]")
+        return 1
+    print_portfolio(console, result)
+    return 0
+
+
+def run_tenders(console: Console, args: argparse.Namespace, fetch: Any = None) -> int:
+    """prizolov tenders: открытые закупки в ЕИС по запросу."""
+    from rich.markup import escape
+    from rich.table import Table
+
+    from prizolov_os.memory import Store
+    from prizolov_os.tenders import TenderSearch, TenderSearchError
+
+    try:
+        tenders = TenderSearch(Store(settings.db_path), fetch).search(
+            " ".join(args.query), max_price=args.max_price, only_new=args.new,
+        )
+    except (TenderSearchError, ValueError) as e:
+        console.print(f"[red]{e}[/]")
+        return 1
+    if not tenders:
+        console.print("Закупок не найдено." + (" Новых нет." if args.new else ""))
+        return 0
+    table = Table("Номер", "Предмет", "Заказчик", "Цена, ₽", "Подача до", "",
+                  title=f"Закупки: {escape(' '.join(args.query))}")
+    for t in tenders:
+        price = f"{t.price:,.0f}".replace(",", " ") if t.price else "—"
+        table.add_row(t.number, escape(t.title[:90]), escape(t.customer[:50]), price,
+                      t.deadline or "—", "[green]новая[/]" if t.new else "")
+    console.print(table)
+    for t in tenders:
+        console.print(f"[dim]{t.number}: {t.url}[/]", highlight=False)
+    return 0
+
+
+def run_accuracy(console: Console, args: argparse.Namespace) -> int:
+    """prizolov accuracy: открытая статистика точности прогнозов в HTML."""
+    from prizolov_os.accuracy import accuracy_data, render_html
+    from prizolov_os.memory import Store
+
+    data = accuracy_data(Store(settings.db_path))
+    out = Path(args.out) if args.out else Path(settings.workspace_dir) / "reports" / "accuracy.html"
+    out.parent.mkdir(parents=True, exist_ok=True)
+    out.write_text(render_html(data), encoding="utf-8")
+    o = data["overall"]
+    if o["forecasts"]:
+        console.print(f"Сверено прогнозов: {o['forecasts']}; в интервале 80%: "
+                      f"{o['interval_80_pct']}%; направление угадано: {o['direction_pct']}%")
+    else:
+        console.print(f"Сверенных прогнозов пока нет; ожидают срока: {data['pending']}.")
+    console.print(f"Страница: {out}")
+    return 0
+
+
+def run_calendar(console: Console, args: argparse.Namespace) -> int:
+    """prizolov calendar: плановые платежи для платёжного календаря."""
+    from prizolov_os.analytics.cashflow import parse_date
+    from prizolov_os.memory import Store
+    from prizolov_os.payment_calendar import PaymentCalendar, parse_repeat
+
+    from .render import print_planned
+
+    calendar = PaymentCalendar(Store(settings.db_path))
+    try:
+        if args.action == "add":
+            payment = calendar.add(
+                args.title, args.amount, parse_date(args.date), parse_repeat(args.repeat),
+                parse_date(args.until) if args.until else None,
+            )
+            console.print(f"Добавлено #{payment.id}: {payment.title}, {payment.amount:,.2f}"
+                          .replace(",", " ") + f", {payment.as_dict()['repeat_name']} с "
+                          f"{payment.due_date:%d.%m.%Y} ({payment.category})")
+        elif args.action == "remove":
+            if not calendar.remove(args.id):
+                console.print(f"[red]Нет планового платежа #{args.id}[/]")
+                return 1
+            console.print(f"Удалено #{args.id}")
+        else:
+            print_planned(console, calendar.list())
+    except ValueError as e:
+        console.print(f"[red]{e}[/]")
+        return 1
     return 0
 
 

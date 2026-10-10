@@ -41,6 +41,8 @@ class Settings:
         api_host: Адрес, на котором слушает HTTP API
         api_port: Порт HTTP API
         api_workers: Сколько задач API выполнять одновременно
+        public_accuracy: Открыть без ключа страницу точности прогнозов (/public/accuracy)
+        tinvest_token: Токен T-Invest API (только чтение) для портфеля из брокерского счёта
         log_level: Уровень логов в файле PRIZOLOV_LOG_FILE (DEBUG, INFO, WARNING, ERROR)
         log_file: Путь к файлу логов (опционально)
         max_retries: Максимальное количество попыток
@@ -68,6 +70,8 @@ class Settings:
     api_host: str = "127.0.0.1"
     api_port: int = 8800
     api_workers: int = 2
+    public_accuracy: bool = False
+    tinvest_token: Optional[str] = None
     log_level: str = "INFO"
     log_file: Optional[str] = None
     max_retries: int = 3
@@ -112,6 +116,8 @@ class Settings:
             api_host=os.getenv("PRIZOLOV_API_HOST", "127.0.0.1"),
             api_port=int(os.getenv("PRIZOLOV_API_PORT", "8800")),
             api_workers=int(os.getenv("PRIZOLOV_API_WORKERS", "2")),
+            public_accuracy=_flag("PRIZOLOV_PUBLIC_ACCURACY", False),
+            tinvest_token=os.getenv("PRIZOLOV_TINVEST_TOKEN") or None,
             log_level=os.getenv("PRIZOLOV_LOG_LEVEL", "INFO"),
             log_file=os.getenv("PRIZOLOV_LOG_FILE"),
             max_retries=int(os.getenv("PRIZOLOV_MAX_RETRIES", "3")),

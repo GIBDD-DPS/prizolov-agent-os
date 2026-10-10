@@ -1,12 +1,13 @@
 # Prizolov Agent OS
 
-> Open-source team of AI agents built on Claude (Anthropic) for business, by Dm.Andreyanov / Prizolov Lab (prizolov.ru), Apache 2.0. A Director agent delegates to five specialists (assistant, researcher, writer, cash-flow analyst, market analyst), checks answers with a critic and learns from user feedback. It forecasts metals, stocks, currencies and crypto (Yahoo Finance, Moscow Exchange, Bank of Russia) with methods that compete on history and calibrate on their own errors, analyses bank statements for cash gaps, and searches a local knowledge base of the user's documents. Interfaces: CLI, web UI, HTTP API, Telegram bot, scheduler, Docker. Python 3.10+.
+> Open-source team of AI agents built on Claude (Anthropic) for business, by Dm.Andreyanov / Prizolov Lab (prizolov.ru), Apache 2.0. A Director agent delegates to seven specialists (assistant, researcher, writer, cash-flow analyst, market analyst, contracts lawyer, public procurement specialist), checks answers with a critic and learns from user feedback. It forecasts metals, stocks, currencies and crypto (Yahoo Finance, Moscow Exchange, Bank of Russia) with methods that compete on history and calibrate on their own errors, publishes honest forecast accuracy, reads Russian bank statements (1C exchange format, CSV, Excel) and builds a payment calendar with the cash-gap day, analyses investor portfolios (T-Invest API or CSV: VaR, stress tests), searches public procurement (44-FZ/223-FZ), reviews and compares contracts, and searches a local knowledge base of the user's documents. Interfaces: CLI, web UI, HTTP API, Telegram bot, MCP server, scheduler, Docker. Python 3.10+.
 
 Key facts:
 
-- Install: `pip install -e .` from a clone; extras `[api]` (web UI and HTTP API), `[telegram]` (bot), `[all]`.
+- Install: `pip install -e .` from a clone; extras `[api]` (web UI and HTTP API), `[telegram]` (bot), `[mcp]` (MCP server), `[all]`.
 - Setup: `prizolov init` writes `.env` (Claude key, model, budget, Telegram, API key); `prizolov doctor` checks the installation.
-- Without a Claude key: `prizolov report GOLD --horizons 1,7,15,30` (multi-horizon forecasts), `prizolov cashflow statement.csv --balance N --days N` (cash-gap risk), `prizolov report --file prices.csv`.
+- Without a Claude key: `prizolov report GOLD --horizons 1,7,15,30` (multi-horizon forecasts), `prizolov cashflow kl_to_1c.txt --days 60` (statement analysis and payment calendar; planned payments via `prizolov calendar add`), `prizolov portfolio my.csv`, `prizolov tenders "office furniture supply"`, `prizolov accuracy` (HTML accuracy page), `prizolov report --file prices.csv`.
+- MCP: `prizolov mcp` (extra `[mcp]`) exposes forecasts, statements, payment calendar, portfolio, procurement search, document comparison and search to Claude Desktop, Cursor and Claude Code.
 - With a key: `prizolov chat`, `prizolov run "task"`, `prizolov api` (web UI at http://127.0.0.1:8800), `prizolov telegram`.
 - Every forecast reports a median, 80%/95% intervals, probability of growth and how many backtested forecasts the chosen method was checked on.
 - Default model `claude-sonnet-5-5`; per-task and daily spending limits; writes need human approval; untrusted content is wrapped against prompt injection.
@@ -18,7 +19,8 @@ Key facts:
 - [README (Russian)](https://raw.githubusercontent.com/GIBDD-DPS/prizolov-agent-os/main/README.md): full user guide: web UI, Docker, Telegram, scheduler, API
 - [Architecture](https://raw.githubusercontent.com/GIBDD-DPS/prizolov-agent-os/main/docs/architecture.md): agents, self-learning, forecasting, knowledge base, security
 - [Configuration](https://raw.githubusercontent.com/GIBDD-DPS/prizolov-agent-os/main/docs/configuration.md): every `.env` setting
-- [HTTP API](https://raw.githubusercontent.com/GIBDD-DPS/prizolov-agent-os/main/docs/api.md): endpoints for tasks, approvals, reports, forecasts, schedules, documents
+- [HTTP API](https://raw.githubusercontent.com/GIBDD-DPS/prizolov-agent-os/main/docs/api.md): endpoints for tasks, approvals, reports, forecasts, cash flow, payment calendar, portfolio, tenders, schedules, documents
+- [MCP server](https://raw.githubusercontent.com/GIBDD-DPS/prizolov-agent-os/main/docs/mcp.md): setup for Claude Desktop, Cursor, Claude Code and the tool list
 
 ## Examples
 

@@ -43,6 +43,11 @@ OLD_HEADER = re.compile(r"^(#|<!--|//) Prizolov Agent OS \S+ \| Author: ")
 def style(path: Path) -> Optional[str]:
     if path.name in SKIP_NAMES:
         return None
+    # Выписки клиент-банка в формате 1С: первая строка задана форматом.
+    if path.suffix == ".txt" and path.is_file():
+        with path.open("rb") as file:
+            if file.read(20) == b"1CClientBankExchange":
+                return None
     if path.name in HASH_NAMES or path.suffix in HASH_SUFFIXES:
         return "hash"
     if path.name in SLASH_NAMES:

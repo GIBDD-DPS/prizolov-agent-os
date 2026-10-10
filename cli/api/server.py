@@ -76,6 +76,28 @@ class ReportRequest(BaseModel):
     history_days: int = 365
 
 
+class CashflowRequest(BaseModel):
+    path: str = Field(..., max_length=500, examples=["inbox/kl_to_1c.txt"])
+    opening_balance: Optional[float] = Field(
+        None, description="Остаток на начало; без него - из выписки 1С или 0"
+    )
+    days: int = Field(60, ge=1, le=365)
+
+
+class PlannedPaymentRequest(BaseModel):
+    title: str = Field(..., min_length=1, max_length=200)
+    amount: float = Field(..., description="Платёж - минус, поступление - плюс")
+    due_date: str = Field(..., examples=["2026-11-01", "01.11.2026"])
+    repeat: str = Field("разово", examples=["ежемесячно"])
+    until: Optional[str] = None
+
+
+class PortfolioRequest(BaseModel):
+    path: Optional[str] = Field(None, max_length=500, examples=["inbox/portfolio.csv"])
+    use_tinvest: bool = False
+    days: int = Field(30, ge=1, le=365)
+
+
 class ScheduleRequest(BaseModel):
     schedule: str = Field(..., max_length=100, examples=["по будням 9:00", "0 9 * * 1-5"])
     kind: str = Field(..., pattern="^(task|report)$")
@@ -88,7 +110,9 @@ class ScheduleRequest(BaseModel):
 # --- Приложение --------------------------------------------------------------
 
 
-def create_app(service: ApiService, api_keys: Set[str]) -> FastAPI:
+def create_app(
+    service: ApiService, api_keys: Set[str], public_accuracy: bool = False
+) -> FastAPI:
     """Собирает приложение. Без ключей доступа API не создаётся."""
     keys = {k for k in api_keys if k}
     if not keys:
@@ -210,12 +234,70 @@ def create_app(service: ApiService, api_keys: Set[str]) -> FastAPI:
                limit: int = Query(6, ge=1, le=30)) -> List[Dict[str, Any]]:
         return service.search_knowledge(q, limit)
 
+    # Деньги: выписки и платёжный календарь
+
+    @app.get("/v1/statements", dependencies=v1, tags=["cashflow"])
+    def statements() -> List[Dict[str, Any]]:
+        """Файлы выписок в рабочей папке."""
+        return service.statements()
+
+    @app.post("/v1/cashflow", dependencies=v1, tags=["cashflow"])
+    def cashflow(body: CashflowRequest) -> Dict[str, Any]:
+        """Анализ выписки (1С, CSV, Excel), статьи расходов и платёжный календарь."""
+        return service.cashflow(body.path, body.opening_balance, body.days)
+
+    @app.get("/v1/calendar", dependencies=v1, tags=["cashflow"])
+    def list_planned() -> List[Dict[str, Any]]:
+        return service.list_planned()
+
+    @app.post("/v1/calendar", status_code=201, dependencies=v1, tags=["cashflow"])
+    def add_planned(body: PlannedPaymentRequest) -> Dict[str, Any]:
+        """Плановый платёж (минус) или ожидаемое поступление (плюс)."""
+        return service.add_planned(body.title, body.amount, body.due_date, body.repeat,
+                                   body.until)
+
+    @app.delete("/v1/calendar/{payment_id}", status_code=204, dependencies=v1,
+                tags=["cashflow"])
+    def remove_planned(payment_id: int) -> None:
+        service.remove_planned(payment_id)
+
     # Прогнозы, качество, расходы
 
     @app.get("/v1/forecasts", dependencies=v1, tags=["forecasts"])
     def forecasts() -> Dict[str, Any]:
         """Соревнование методов: число прогнозов, процент попаданий, реальные сверки."""
         return service.forecasts()
+
+    @app.post("/v1/portfolio", dependencies=v1, tags=["forecasts"])
+    def portfolio(body: PortfolioRequest) -> Dict[str, Any]:
+        """Портфель: стоимость, доли, риск, стресс-тесты, прогнозы по бумагам (без Claude)."""
+        return service.portfolio(body.path, body.use_tinvest, body.days)
+
+    @app.get("/v1/tenders", dependencies=v1, tags=["tenders"])
+    def tenders(q: str = Query(..., min_length=3, max_length=200),
+                max_price: float = Query(0, ge=0),
+                only_new: bool = False) -> List[Dict[str, Any]]:
+        """Открытые закупки 44-ФЗ / 223-ФЗ в ЕИС по запросу."""
+        return service.tenders(q, max_price, only_new)
+
+    @app.get("/v1/accuracy", dependencies=v1, tags=["forecasts"])
+    def accuracy() -> Dict[str, Any]:
+        """Сводка точности сверенных прогнозов: в целом, по классам, горизонтам, активам."""
+        return service.accuracy()
+
+    if public_accuracy:
+        @app.get("/public/accuracy", include_in_schema=False)
+        def public_accuracy_page() -> HTMLResponse:
+            """Открытая страница точности (включается PRIZOLOV_PUBLIC_ACCURACY)."""
+            return HTMLResponse(service.accuracy_page(), headers={
+                "Content-Security-Policy": "default-src 'none'; style-src 'unsafe-inline'; "
+                                           "frame-ancestors 'none'",
+                "Cache-Control": "public, max-age=300",
+            })
+
+        @app.get("/public/accuracy.json", include_in_schema=False)
+        def public_accuracy_json() -> Dict[str, Any]:
+            return service.accuracy()
 
     @app.post("/v1/forecasts/verify", dependencies=v1, tags=["forecasts"])
     def verify() -> Dict[str, Any]:
@@ -332,7 +414,8 @@ def run(host: Optional[str] = None, port: Optional[int] = None, scheduler: bool 
     host = host or settings.api_host
     port = port or settings.api_port
     print(f"{HEADER}\nВеб-интерфейс: http://{host}:{port}  ·  API: http://{host}:{port}/docs")
-    uvicorn.run(create_app(service, keys), host=host, port=port, log_level="warning")
+    app = create_app(service, keys, public_accuracy=settings.public_accuracy)
+    uvicorn.run(app, host=host, port=port, log_level="warning")
     return 0
 
 

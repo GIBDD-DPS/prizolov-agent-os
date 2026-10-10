@@ -92,6 +92,9 @@ img.chart { max-width: 100%; border-radius: 8px; border: 1px solid var(--line); 
 .stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 12px; }
 .stat { background: var(--bg); border-radius: 10px; padding: 12px; }
 .stat b { display: block; font-size: 20px; }
+.alert { border-radius: 10px; padding: 12px 14px; margin: 12px 0; }
+.alert.bad { background: color-mix(in srgb, var(--bad) 12%, transparent); }
+.alert.ok { background: color-mix(in srgb, var(--ok) 12%, transparent); }
 footer { color: var(--muted); font-size: 12px; text-align: center; padding: 16px; }
 </style>
 </head>
@@ -115,6 +118,7 @@ footer { color: var(--muted); font-size: 12px; text-align: center; padding: 16px
   <h1>Prizolov Agent OS <small id="version"></small></h1>
   <nav>
     <button data-tab="chat" class="active">Чат</button>
+    <button data-tab="money">Деньги</button>
     <button data-tab="report">Отчёт по активу</button>
     <button data-tab="forecasts">Точность прогнозов</button>
     <button data-tab="schedule">Расписание</button>
@@ -137,6 +141,43 @@ footer { color: var(--muted); font-size: 12px; text-align: center; padding: 16px
       </div>
     </div>
     <div id="messages"></div>
+  </section>
+
+  <section id="tab-money">
+    <div class="card">
+      <h2>Выписка и прогноз остатка</h2>
+      <p class="muted small">Выгрузка клиент-банка для 1С (.txt), CSV или Excel. Анализ без
+        Claude: статьи расходов, прогноз остатка, день кассового разрыва.</p>
+      <div class="row">
+        <div><label for="m-upload">Загрузить выписку</label>
+          <input id="m-upload" type="file" accept=".txt,.csv,.xlsx,.xlsm"></div>
+        <div><label for="m-file">или выбрать файл</label><select id="m-file"></select></div>
+      </div>
+      <form id="money-form" class="row" style="margin-top:12px">
+        <div><label for="m-balance">Остаток на начало</label>
+          <input id="m-balance" type="number" step="0.01" placeholder="из выписки 1С"></div>
+        <div><label for="m-days">Горизонт, дней</label>
+          <input id="m-days" type="number" value="60" min="1" max="365"></div>
+        <div class="narrow"><button class="primary" type="submit">Анализировать</button></div>
+      </form>
+    </div>
+    <div id="money-out"></div>
+    <div class="card">
+      <h2>Плановые платежи</h2>
+      <p class="muted small">Аренда, зарплата, налоги, счета поставщиков (минус) и ожидаемые
+        оплаты клиентов (плюс). По ним строится платёжный календарь.</p>
+      <form id="plan-form" class="row">
+        <div><label for="p-title">Что</label><input id="p-title" placeholder="Аренда офиса" required></div>
+        <div><label for="p-amount">Сумма</label>
+          <input id="p-amount" type="number" step="0.01" placeholder="-180000" required></div>
+        <div><label for="p-date">Дата</label><input id="p-date" type="date" required></div>
+        <div><label for="p-repeat">Повтор</label>
+          <select id="p-repeat"><option>разово</option><option>еженедельно</option>
+            <option selected>ежемесячно</option><option>ежеквартально</option></select></div>
+        <div class="narrow"><button class="secondary" type="submit">Добавить</button></div>
+      </form>
+      <div id="plan-out"></div>
+    </div>
   </section>
 
   <section id="tab-report">
@@ -369,7 +410,8 @@ $("#login-form").addEventListener("submit", e => {
   start();
 });
 $("#logout").addEventListener("click", () => { store.clear(); showLogin(); });
-const loaders = { forecasts: loadForecasts, schedule: loadSchedule, status: loadStatus };
+const loaders = { forecasts: loadForecasts, schedule: loadSchedule, status: loadStatus,
+  money: loadMoney };
 document.querySelectorAll("nav button").forEach(button => button.addEventListener("click", () => {
   document.querySelectorAll("nav button").forEach(b => b.classList.toggle("active", b === button));
   document.querySelectorAll("main section").forEach(s =>
@@ -472,6 +514,100 @@ async function finish(job, box) {
   }));
   box.scrollIntoView({ behavior: "smooth", block: "end" });
 }
+
+// --- Деньги ---
+const money = v => Number(v || 0).toLocaleString("ru-RU", { minimumFractionDigits: 0,
+  maximumFractionDigits: 0 });
+async function loadMoney() {
+  const [files, planned] = await Promise.all([api("/v1/statements"), api("/v1/calendar")]);
+  const select = $("#m-file"), current = select.value;
+  select.innerHTML = files.length ? files.map(f => `<option>${esc(f.path)}</option>`).join("")
+    : '<option value="">нет файлов - загрузите выписку</option>';
+  if (current) select.value = current;
+  $("#plan-out").innerHTML = planned.length ? `<div class="table-wrap"><table><tr><th>#</th>
+    <th>Что</th><th>Сумма</th><th>Дата</th><th>Повтор</th><th>Статья</th><th></th></tr>` +
+    planned.map(p => `<tr><td>${p.id}</td><td>${esc(p.title)}</td>
+    <td class="${p.amount < 0 ? "bad" : "ok"}">${money(p.amount)}</td>
+    <td>${new Date(p.due_date).toLocaleDateString("ru-RU")}</td><td>${esc(p.repeat_name)}</td>
+    <td>${esc(p.category)}</td><td><button class="danger" data-plan="${p.id}">Удалить</button></td>
+    </tr>`).join("") + "</table></div>" : '<p class="muted">Плановых платежей пока нет.</p>';
+  document.querySelectorAll("button[data-plan]").forEach(b => b.addEventListener("click", async () => {
+    await api("/v1/calendar/" + b.dataset.plan, { method: "DELETE" }).catch(showError);
+    loadMoney().catch(showError);
+  }));
+}
+$("#m-upload").addEventListener("change", async () => {
+  const file = $("#m-upload").files[0];
+  if (!file) return;
+  try {
+    const r = await api("/v1/inbox/" + encodeURIComponent(file.name), { method: "PUT", body: file });
+    await loadMoney();
+    $("#m-file").value = r.path;
+  } catch (error) { showError(error); }
+});
+$("#plan-form").addEventListener("submit", async e => {
+  e.preventDefault();
+  try {
+    await api("/v1/calendar", { method: "POST", json: { title: $("#p-title").value,
+      amount: Number($("#p-amount").value), due_date: $("#p-date").value,
+      repeat: $("#p-repeat").value } });
+    $("#p-title").value = ""; $("#p-amount").value = "";
+    await loadMoney();
+  } catch (error) { showError(error); }
+});
+$("#money-form").addEventListener("submit", async e => {
+  e.preventDefault();
+  const out = $("#money-out");
+  if (!$("#m-file").value) { out.innerHTML = '<div class="card bad">Загрузите выписку.</div>'; return; }
+  out.innerHTML = '<div class="card muted">Считаю…</div>';
+  try {
+    const balance = $("#m-balance").value;
+    const r = await api("/v1/cashflow", { method: "POST", json: { path: $("#m-file").value,
+      days: Number($("#m-days").value) || 60, opening_balance: balance === "" ? null : Number(balance) } });
+    const a = r.analysis, f = a.forecast, plan = r.calendar;
+    let html = `<div class="card"><h2>Итоги ${esc(a.period.start)} – ${esc(a.period.end)}</h2>
+      <p class="muted small">${r.source_format === "1c" ? "Выписка 1С" : "Выписка"} · операций
+      ${a.transactions}${r.opening_from_file ? " · остаток на начало взят из файла" : ""}</p>
+      <div class="stats">
+      <div class="stat"><span class="muted small">Поступления</span><b class="ok">${money(a.total_inflow)}</b></div>
+      <div class="stat"><span class="muted small">Расходы</span><b class="bad">${money(a.total_outflow)}</b></div>
+      <div class="stat"><span class="muted small">Остаток на конец</span><b>${money(a.closing_balance)}</b></div>
+      <div class="stat"><span class="muted small">Риск минуса через ${f.horizon_days} дн.</span>
+        <b class="${f.probability_negative >= 0.2 ? "bad" : "ok"}">${pct(f.probability_negative * 100)}</b></div>
+      </div>`;
+    if (plan && plan.gap) {
+      html += `<div class="alert bad"><b>Кассовый разрыв ${new Date(plan.gap.date).toLocaleDateString("ru-RU")}</b>
+        (через ${plan.gap.days_from_start} дн.): в худшей точке не хватит ${money(plan.gap.shortfall)}.
+        ${plan.gap.movable.length ? "Можно перенести: " + plan.gap.movable.map(m =>
+        `${esc(m.title)} ${money(m.amount)} (${new Date(m.date).toLocaleDateString("ru-RU")})`).join(", ") : ""}</div>`;
+    } else if (plan) {
+      html += '<div class="alert ok">С учётом плановых платежей остаток не уходит в минус.</div>';
+    } else {
+      html += '<p class="muted small">Добавьте плановые платежи ниже - и прогноз покажет день кассового разрыва.</p>';
+    }
+    if (plan) {
+      const rows = plan.days.filter(d => d.planned.length || d === plan.lowest || d.date === plan.lowest.date);
+      html += `<h3>Платёжный календарь</h3><div class="table-wrap"><table><tr><th>Дата</th><th>Платежи</th>
+        <th>Ожидаемый остаток</th><th>Интервал 80%</th><th>Риск минуса</th></tr>` + rows.map(d => `<tr>
+        <td>${new Date(d.date).toLocaleDateString("ru-RU")}</td>
+        <td>${d.planned.map(i => `${esc(i.title)} ${money(i.amount)}`).join("; ") || '<span class="muted">худшая точка</span>'}</td>
+        <td class="${d.expected < 0 ? "bad" : ""}"><b>${money(d.expected)}</b></td>
+        <td>${money(d.low_80)} – ${money(d.high_80)}</td>
+        <td class="${d.probability_negative >= 0.2 ? "bad" : "ok"}">${pct(d.probability_negative * 100)}</td></tr>`).join("")
+        + "</table></div>";
+    }
+    html += `<h3>По статьям</h3><div class="table-wrap"><table><tr><th>Статья</th><th>Поступления</th>
+      <th>Расходы</th><th>Операций</th></tr>` + r.categories.map(c => `<tr><td>${esc(c.category)}</td>
+      <td>${c.inflow ? money(c.inflow) : ""}</td><td>${c.outflow ? money(c.outflow) : ""}</td>
+      <td>${c.count}</td></tr>`).join("") + `</table></div><div id="money-chart"></div></div>`;
+    out.innerHTML = html;
+    const img = document.createElement("img");
+    img.className = "chart"; img.alt = "Остаток и прогноз"; img.src = await fileUrl(r.chart_file);
+    $("#money-chart").appendChild(img);
+  } catch (error) {
+    if (!(error instanceof AuthError)) out.innerHTML = '<div class="card bad">' + esc(error.message) + "</div>";
+  }
+});
 
 // --- Отчёт ---
 $("#report-form").addEventListener("submit", async e => {

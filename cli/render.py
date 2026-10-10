@@ -5,7 +5,7 @@
 """Вывод в терминал: прогресс агентов, подтверждения, ответы."""
 
 import json
-from typing import Any, Callable, Dict
+from typing import Any, Callable, Dict, List, Optional
 
 from rich.console import Console
 from rich.markdown import Markdown
@@ -180,12 +180,15 @@ def print_report(console: Console, report: Any) -> None:
     console.print(f"[italic]{escape(DISCLAIMER)}[/]")
 
 
-def print_cashflow(console: Console, analysis: Dict[str, Any]) -> None:
-    """Анализ выписки: итоги, прогноз остатка, месяцы, крупные расходы."""
-    from rich.table import Table
+def money(value: float) -> str:
+    return f"{value:,.2f}".replace(",", " ")
 
-    def money(value: float) -> str:
-        return f"{value:,.2f}".replace(",", " ")
+
+def print_cashflow(
+    console: Console, analysis: Dict[str, Any], categories: Optional[List[Dict[str, Any]]] = None
+) -> None:
+    """Анализ выписки: итоги, прогноз остатка, месяцы, статьи, крупные расходы."""
+    from rich.table import Table
 
     p, f = analysis["period"], analysis["forecast"]
     console.print(f"[bold]Выписка: {p['start']} – {p['end']}[/] · операций "
@@ -212,7 +215,107 @@ def print_cashflow(console: Console, analysis: Dict[str, Any]) -> None:
     for m in analysis["monthly"]:
         months.add_row(m["month"], money(m["inflow"]), money(m["outflow"]), money(m["net"]))
     console.print(months)
+    if categories:
+        table = Table("Статья", "Поступления", "Расходы", "Операций", title="По статьям")
+        for c in categories:
+            table.add_row(escape(c["category"]), money(c["inflow"]) if c["inflow"] else "",
+                          money(c["outflow"]) if c["outflow"] else "", str(c["count"]))
+        console.print(table)
     top = Table("Назначение", "Сумма", title="Крупнейшие расходы")
     for e in analysis["top_expenses"]:
-        top.add_row(escape(e["description"]), money(e["total"]))
+        top.add_row(escape(e["description"][:80]), money(e["total"]))
     console.print(top)
+
+
+def print_planned(console: Console, payments: List[Any]) -> None:
+    """Плановые платежи платёжного календаря."""
+    from rich.table import Table
+
+    if not payments:
+        console.print("Плановых платежей нет. Добавить: prizolov calendar add \"Аренда\" "
+                      "-180000 2026-11-01 --repeat ежемесячно")
+        return
+    table = Table("#", "Платёж", "Сумма", "Дата", "Повтор", "Статья", title="Платёжный календарь")
+    for p in payments:
+        d = p.as_dict()
+        until = f" до {p.until:%d.%m.%Y}" if p.until else ""
+        table.add_row(str(p.id), escape(p.title), money(p.amount), f"{p.due_date:%d.%m.%Y}",
+                      d["repeat_name"] + until, escape(p.category))
+    console.print(table)
+
+
+def print_payment_calendar(console: Console, plan: Dict[str, Any]) -> None:
+    """Прогноз остатка по дням с плановыми платежами: разрыв, худшая точка, платежи."""
+    from rich.table import Table
+
+    console.print(
+        f"\n[bold]Платёжный календарь {plan['start']} – {plan['end']}[/]: остаток сейчас "
+        f"{money(plan['closing_balance'])}, плановые платежи за период "
+        f"{money(plan['planned_in_period'])}, фоновый поток {money(plan['background_daily'])} "
+        "в день", highlight=False,
+    )
+    table = Table("Дата", "Платежи", "Ожидаемый остаток", "Интервал 80%", "Риск минуса")
+    for day in plan["days"]:
+        if not day["planned"] and day is not plan.get("lowest"):
+            continue
+        items = "; ".join(f"{escape(i['title'])} {money(i['amount'])}" for i in day["planned"])
+        risk = day["probability_negative"] * 100
+        color = "red" if risk >= 20 else "yellow" if risk >= 5 else "green"
+        table.add_row(day["date"], items or "[dim]худшая точка[/]", money(day["expected"]),
+                      f"{money(day['low_80'])} – {money(day['high_80'])}",
+                      f"[{color}]{risk:.0f}%[/]")
+    console.print(table)
+    gap = plan.get("gap")
+    if gap:
+        console.print(
+            f"[red bold]Кассовый разрыв {gap['date']}[/] (через {gap['days_from_start']} дн.): "
+            f"не хватит до {money(gap['shortfall'])}.", highlight=False,
+        )
+        if gap["movable"]:
+            moves = ", ".join(f"{escape(m['title'])} {money(m['amount'])} ({m['date']})"
+                              for m in gap["movable"])
+            console.print(f"Можно попробовать перенести: {moves}", highlight=False)
+    else:
+        console.print("[green]Ожидаемый остаток не уходит в минус на всём горизонте.[/]")
+
+
+def print_portfolio(console: Console, result: Dict[str, Any]) -> None:
+    """Портфель: состав, риск, стресс-тесты, предупреждения."""
+    from rich.table import Table
+
+    console.print(f"[bold]Портфель: {money(result['total_rub'])} ₽[/]  " + ", ".join(
+        f"{escape(c['asset_class'])} {c['weight_pct']}%" for c in result["by_class"]),
+        highlight=False)
+    table = Table("Бумага", "Кол-во", "Цена", "Стоимость, ₽", "Доля", "Волатильность",
+                  "Доходность", "Прогноз (80%)", "Рост", title="Позиции")
+    for p in result["positions"]:
+        f = p["forecast"]
+        table.add_row(
+            escape(p["symbol"]), f"{p['quantity']:g}", f"{p['price']:g} {p['currency']}",
+            money(p["value_rub"]), f"{p['weight_pct']}%",
+            f"{p['volatility_pct']}%" if p["volatility_pct"] is not None else "—",
+            f"{p['profit_pct']:+.1f}%" if p["profit_pct"] is not None else "—",
+            f"{f['median']:g} ({f['low_80']:g}–{f['high_80']:g})",
+            f"{f['probability_up_pct']}%",
+        )
+    console.print(table)
+    risk = result["risk"]
+    if "volatility_annual_pct" in risk:
+        console.print(
+            f"Риск ({risk['period']}): волатильность {risk['volatility_annual_pct']}% в год, "
+            f"VaR 95%: за день до {money(risk['var95_1d_rub'])} ₽, за месяц до "
+            f"{money(risk['var95_1m_rub'])} ₽; максимальная просадка {risk['max_drawdown_pct']}%",
+            highlight=False,
+        )
+    if result["stress"]:
+        stress = Table("Сценарий", "Изменение, ₽", "%", title="Стресс-тест")
+        for s in result["stress"]:
+            color = "red" if s["change_rub"] < 0 else "green"
+            stress.add_row(escape(s["scenario"]), f"[{color}]{money(s['change_rub'])}[/]",
+                           f"[{color}]{s['change_pct']:+.2f}%[/]")
+        console.print(stress)
+    for warning in result["warnings"]:
+        console.print(f"[yellow]! {escape(warning)}[/]")
+    for error in result["errors"]:
+        console.print(f"[red]Не удалось оценить {escape(error)}[/]")
+    console.print(f"[italic]{escape(result['note'])}[/]")

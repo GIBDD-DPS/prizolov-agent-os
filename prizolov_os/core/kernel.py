@@ -141,7 +141,7 @@ class Kernel:
         engine = ForecastEngine(ForecastJournal(store))
         knowledge = KnowledgeBase(store, Path(workspace_dir or settings.workspace_dir))
         specialists = create_specialists(
-            metered, workspace_dir, approver, market, engine, knowledge
+            metered, workspace_dir, approver, market, engine, knowledge, store
         )
         trace = settings.trace if trace is None else trace
         kernel = cls(

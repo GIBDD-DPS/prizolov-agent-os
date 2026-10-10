@@ -371,6 +371,90 @@ class ApiService:
     def _relative(self, path: Path) -> str:
         return Path(path).resolve().relative_to(self.workspace_dir.resolve()).as_posix()
 
+    # --- Деньги: выписки и платёжный календарь -------------------------------
+
+    @property
+    def calendar(self) -> Any:
+        from prizolov_os.payment_calendar import PaymentCalendar
+
+        return PaymentCalendar(self.kernel.store)
+
+    def statements(self) -> List[Dict[str, Any]]:
+        """Файлы выписок в рабочей папке (CSV, Excel, .txt из клиент-банка)."""
+        root = self.workspace_dir.resolve()
+        files = []
+        for path in sorted(root.rglob("*")):
+            if path.suffix.lower() not in (".csv", ".xlsx", ".xlsm", ".txt") or not path.is_file():
+                continue
+            relative = path.relative_to(root)
+            if relative.parts and relative.parts[0] in ("reports", "charts"):
+                continue
+            files.append({"path": relative.as_posix(), "size": path.stat().st_size})
+        return files[:200]
+
+    def cashflow(self, path: str, opening_balance: Optional[float], days: int) -> Dict[str, Any]:
+        """Анализ выписки, статьи и платёжный календарь (без Claude)."""
+        from prizolov_os import charts
+        from prizolov_os.analytics import analyze_cashflow
+        from prizolov_os.analytics.categories import by_category
+        from prizolov_os.analytics.statements import load_statement
+        from prizolov_os.payment_calendar import project
+        from prizolov_os.tools.builtin import Workspace
+
+        if not 1 <= days <= 365:
+            raise ApiError(422, "days: от 1 до 365")
+        try:
+            file = Workspace(self.workspace_dir).resolve(path)
+            statement = load_statement(file)
+        except FileNotFoundError:
+            raise ApiError(404, f"Файл {path} не найден") from None
+        except (PermissionError, ValueError) as e:
+            raise ApiError(422, str(e)) from None
+        opening = opening_balance if opening_balance is not None else (
+            statement.opening_balance or 0.0
+        )
+        transactions = statement.transactions
+        analysis = analyze_cashflow(transactions, opening, days)
+        planned = self.calendar.list()
+        plan = project(transactions, opening, planned, days) if planned else None
+        out = self.workspace_dir / "reports"
+        out.mkdir(parents=True, exist_ok=True)
+        stem = "".join(c if c.isalnum() else "_" for c in Path(path).stem)
+        chart = charts.cashflow_forecast_chart(
+            out / f"cashflow-{stem}.png", transactions, opening, analysis["forecast"]
+        )
+        return {
+            "source_format": statement.source_format,
+            "opening_balance": opening,
+            "opening_from_file": opening_balance is None and statement.opening_balance is not None,
+            "analysis": analysis,
+            "categories": by_category(transactions),
+            "calendar": plan,
+            "chart_file": self._relative(chart),
+        }
+
+    def list_planned(self) -> List[Dict[str, Any]]:
+        return [p.as_dict() for p in self.calendar.list()]
+
+    def add_planned(
+        self, title: str, amount: float, due_date: str, repeat: str, until: Optional[str]
+    ) -> Dict[str, Any]:
+        from prizolov_os.analytics.cashflow import parse_date
+        from prizolov_os.payment_calendar import parse_repeat
+
+        try:
+            payment = self.calendar.add(
+                title, amount, parse_date(due_date), parse_repeat(repeat),
+                parse_date(until) if until else None,
+            )
+        except ValueError as e:
+            raise ApiError(422, str(e)) from None
+        return payment.as_dict()
+
+    def remove_planned(self, payment_id: int) -> None:
+        if not self.calendar.remove(payment_id):
+            raise ApiError(404, f"Нет планового платежа #{payment_id}")
+
     # --- Прогнозы, качество, расходы -----------------------------------------
 
     def forecasts(self) -> Dict[str, Any]:
@@ -385,6 +469,53 @@ class ApiService:
             row["asset_class_name"] = ASSET_CLASSES.get(row["asset_class"], row["asset_class"])
             row["method_name"] = METHOD_NAMES.get(row["method"], row["method"])
         return {"counts": journal.counts(), "methods": board}
+
+    def portfolio(self, path: Optional[str], use_tinvest: bool, days: int) -> Dict[str, Any]:
+        from prizolov_os.config import settings
+        from prizolov_os.portfolio import (
+            PortfolioError,
+            TInvestClient,
+            analyze_portfolio,
+            load_portfolio,
+        )
+        from prizolov_os.tools.builtin import Workspace
+
+        if not 1 <= days <= 365:
+            raise ApiError(422, "days: от 1 до 365")
+        try:
+            if use_tinvest:
+                positions = TInvestClient(settings.tinvest_token or "").positions()
+            elif path:
+                positions = load_portfolio(Workspace(self.workspace_dir).resolve(path))
+            else:
+                raise ApiError(422, "Укажите path или use_tinvest")
+            return analyze_portfolio(positions, self.kernel.market, None, days)
+        except FileNotFoundError:
+            raise ApiError(404, f"Файл {path} не найден") from None
+        except (PermissionError, PortfolioError, ValueError) as e:
+            raise ApiError(422, str(e)) from None
+
+    def tenders(self, query: str, max_price: float, only_new: bool) -> List[Dict[str, Any]]:
+        from prizolov_os.tenders import TenderSearch, TenderSearchError
+
+        try:
+            found = TenderSearch(self.kernel.store).search(query, max_price=max_price,
+                                                           only_new=only_new)
+        except ValueError as e:
+            raise ApiError(422, str(e)) from None
+        except TenderSearchError as e:
+            raise ApiError(502, str(e)) from None
+        return [t.as_dict() for t in found]
+
+    def accuracy(self) -> Dict[str, Any]:
+        from prizolov_os.accuracy import accuracy_data
+
+        return accuracy_data(self.kernel.store)
+
+    def accuracy_page(self) -> str:
+        from prizolov_os.accuracy import render_html
+
+        return render_html(self.accuracy())
 
     def verify_forecasts(self) -> Dict[str, Any]:
         report = self.kernel.verify_forecasts()

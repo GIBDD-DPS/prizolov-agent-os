@@ -55,13 +55,25 @@ Then run:
   | assistant | calculations, dates, files |
   | researcher | web and document search with sources |
   | writer | articles, reports, letters |
-  | cash-flow analyst | bank statements, cash gaps |
-  | market analyst | prices and forecasts |
+  | cash-flow analyst | bank statements, expense categories, payment calendar |
+  | market analyst | prices, forecasts, investor portfolio |
+  | contracts lawyer | contract risks with quotes and proposed wording, version comparison |
+  | procurement specialist | public procurement search (44-FZ/223-FZ), tender document review |
 - **Market forecasts.**
   - Data sources: Yahoo Finance, Moscow Exchange, Bank of Russia.
   - Every forecast has a median, 80% and 95% intervals and the probability of growth.
   - It also says how many backtested forecasts the method was checked on and how
     often the outcome fell inside the interval.
+- **Payment calendar.** Russian bank statements in the 1C exchange format (exported by
+  any client-bank), CSV or Excel; expense categories; planned payments; the day cash
+  runs out, the shortfall and which payments could be moved.
+- **Investor portfolio.** From a file or a read-only T-Invest brokerage account: weights,
+  volatility, 95% VaR, drawdown, stress tests, concentration, per-position forecasts.
+- **Public procurement.** Open tenders from the unified procurement system with a daily
+  digest of new ones, tender document review and a go/no-go assessment.
+- **Contracts.** Risk review with quotes and proposed wording; version comparison.
+- **Honest accuracy page.** How many forecasts actually came true.
+- **MCP server.** The same tools in Claude Desktop, Cursor and Claude Code.
 - **Learning from errors.**
   - Four forecasting methods compete on each asset's history.
   - Forecasts that come due are checked against actual prices, and interval
@@ -89,6 +101,7 @@ Python 3.10+:
 pip install -e .              # core: agents, forecasts, reports, CLI
 pip install -e ".[api]"       # + web interface and HTTP API
 pip install -e ".[telegram]"  # + Telegram bot
+pip install -e ".[mcp]"       # + MCP server
 prizolov init                 # writes .env step by step
 prizolov doctor               # checks the key, data sources, folders
 ```
@@ -99,7 +112,12 @@ prizolov doctor               # checks the key, data sources, folders
 prizolov chat                                       # interactive chat with the agents
 prizolov run "Forecast the USD/RUB rate for 30 days"
 prizolov report GOLD --horizons 1,7,15,30           # forecasts without Claude
-prizolov cashflow bank.csv --balance 500000         # cash-flow analysis without Claude
+prizolov cashflow kl_to_1c.txt --days 60            # statement + payment calendar, no Claude
+prizolov calendar add "Rent" -180000 2026-11-01 --repeat monthly
+prizolov portfolio my.csv                           # portfolio risk and stress tests
+prizolov tenders office furniture supply            # public procurement search
+prizolov accuracy                                   # HTML page with forecast accuracy
+prizolov mcp                                        # MCP server for Claude Desktop / Cursor
 prizolov api                                        # web UI at http://127.0.0.1:8800
 prizolov telegram                                   # Telegram bot (whitelist only)
 docker compose up -d                                # web UI and API in Docker
@@ -113,6 +131,7 @@ Scheduled tasks are set up with `/schedule` in the chat or Telegram, or by askin
 - [docs/architecture.md](docs/architecture.md) — how the system works.
 - [docs/configuration.md](docs/configuration.md) — all settings.
 - [docs/api.md](docs/api.md) — HTTP API reference.
+- [docs/mcp.md](docs/mcp.md) — MCP server setup for Claude Desktop, Cursor, Claude Code.
 - [examples/](examples/) — demo data and walkthroughs.
 - [CONTRIBUTING.md](CONTRIBUTING.md), [SECURITY.md](SECURITY.md), [CHANGELOG.md](CHANGELOG.md), [ROADMAP.md](ROADMAP.md).
 - [AGENTS.md](AGENTS.md) — rules for AI coding assistants; [llms.txt](llms.txt) — project summary for LLMs.
