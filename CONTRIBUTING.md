@@ -29,6 +29,7 @@ pip install -e ".[all]"
 python -m pytest            # тесты: сеть и ключ Claude не нужны
 ruff check .                # стиль кода
 mypy prizolov_os cli        # типы
+pre-commit install          # те же проверки перед каждым коммитом
 ```
 
 ## Правила для изменений

@@ -1,0 +1,28 @@
+# Prizolov Agent OS 0.3.0 | Author: Dm.Andreyanov | Brand: Prizolov Lab | © 2026
+# SPDX-FileCopyrightText: 2026 Dm.Andreyanov / Prizolov Lab
+# SPDX-License-Identifier: Apache-2.0
+
+# Проверки перед каждым коммитом - те же, что в CI. Инструменты берутся из набора [dev]:
+#   pip install -e ".[all]"
+#   pre-commit install
+# Проверить все файлы вручную: pre-commit run --all-files
+
+repos:
+  - repo: local
+    hooks:
+      - id: ruff
+        name: ruff (стиль кода)
+        entry: ruff check --fix --force-exclude
+        language: system
+        types: [python]
+      - id: stamp-headers
+        name: шапки авторства
+        entry: python scripts/stamp_headers.py
+        language: system
+        pass_filenames: false
+      - id: mypy
+        name: mypy (типы)
+        entry: mypy prizolov_os cli
+        language: system
+        types: [python]
+        pass_filenames: false

@@ -53,11 +53,13 @@ pip install -e ".[all]"
 python -m pytest -q                          # все тесты, сеть и ключ Claude не нужны
 ruff check .                                 # стиль (E, F, W, I; строка до 100 символов)
 mypy prizolov_os cli                         # типы
+pre-commit run --all-files                   # всё сразу, как перед коммитом
 python scripts/stamp_headers.py              # проставить шапки авторства
 python scripts/stamp_headers.py --check      # проверить шапки (как в CI)
 ```
 
-Перед завершением работы все четыре проверки должны проходить.
+Перед завершением работы все проверки должны проходить; CI также требует покрытие
+тестами не ниже 90%.
 
 ## Обязательные правила
 
