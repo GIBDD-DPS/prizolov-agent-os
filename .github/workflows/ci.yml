@@ -107,8 +107,13 @@ jobs:
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@v7
+      # Базовый образ - из зеркала Google: Docker Hub ограничивает число загрузок
+      # (ошибка 429). Если зеркало недоступно - из Docker Hub.
       - name: Собрать образ
-        run: docker build -t prizolov-os:ci .
+        run: |
+          base=mirror.gcr.io/library/python:3.12-slim
+          docker pull -q "$base" || { base=python:3.12-slim; docker pull -q "$base"; }
+          docker build --build-arg BASE_IMAGE="$base" -t prizolov-os:ci .
       - name: Запустить и проверить веб-интерфейс и API
         run: |
           docker run -d --name pzl -p 8800:8800 \

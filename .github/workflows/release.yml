@@ -79,7 +79,10 @@ jobs:
       - name: Собрать и опубликовать
         run: |
           VERSION="${GITHUB_REF_NAME#v}"
-          docker build -t "$IMAGE:$VERSION" -t "$IMAGE:latest" .
+          # Базовый образ - из зеркала Google, если доступно (без лимитов Docker Hub).
+          base=mirror.gcr.io/library/python:3.12-slim
+          docker pull -q "$base" || { base=python:3.12-slim; docker pull -q "$base"; }
+          docker build --build-arg BASE_IMAGE="$base" -t "$IMAGE:$VERSION" -t "$IMAGE:latest" .
           docker push "$IMAGE:$VERSION"
           docker push "$IMAGE:latest"
 
