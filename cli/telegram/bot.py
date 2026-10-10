@@ -105,8 +105,10 @@ def build_application(token: str, allowed_ids: Set[int], workspace_dir: Path) ->
     async def on_document(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         message = update.effective_message
         user = update.effective_user
+        if message is None or message.document is None:
+            return
         svc = service()
-        if not svc.is_allowed(user.id if user else None):
+        if user is None or not svc.is_allowed(user.id):
             await asyncio.to_thread(svc.deny, message.chat_id, user.id if user else None)
             return
         document = message.document
@@ -119,6 +121,8 @@ def build_application(token: str, allowed_ids: Set[int], workspace_dir: Path) ->
 
     async def on_button(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         query = update.callback_query
+        if query is None:
+            return
         answer = service().resolve_approval(query.data or "", query.from_user.id)
         await query.answer(answer)
         await query.edit_message_reply_markup(None)

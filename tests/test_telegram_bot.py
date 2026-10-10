@@ -174,6 +174,21 @@ class TestHandlers:
         _run(handlers["on_document"](update, None))
         assert FakeService.instances[0].calls[-1] == ("deny", 100, 8)
 
+    def test_document_without_sender_is_denied(self, app):
+        _, handlers = app
+        update = SimpleNamespace(effective_message=_message(document=object()),
+                                 effective_user=None)
+        _run(handlers["on_document"](update, None))
+        assert FakeService.instances[0].calls[-1] == ("deny", 100, None)
+
+    def test_update_without_document_or_query_is_ignored(self, app):
+        _, handlers = app
+        update = SimpleNamespace(effective_message=_message(), effective_user=None,
+                                 callback_query=None)
+        _run(handlers["on_document"](update, None))
+        _run(handlers["on_button"](update, None))
+        assert FakeService.instances == []
+
     def test_document_is_downloaded(self, app):
         _, handlers = app
 

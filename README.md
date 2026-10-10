@@ -429,7 +429,7 @@ print(to_markdown(report))
 pip install -e ".[all]"
 python -m pytest                                # тесты: сеть и ключ не нужны
 ruff check .                                    # стиль кода
-mypy prizolov_os cli                            # типы
+python -m mypy prizolov_os cli                  # типы
 python scripts/stamp_headers.py                 # шапки авторства во всех файлах
 ```
 

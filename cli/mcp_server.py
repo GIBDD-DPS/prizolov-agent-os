@@ -53,7 +53,9 @@ def _tool_error() -> Any:
     try:
         from mcp.server.mcpserver.exceptions import ToolError  # mcp 2.x
     except ImportError:
-        from mcp.server.fastmcp.exceptions import ToolError  # mcp 1.x
+        from mcp.server.fastmcp.exceptions import (  # type: ignore[no-redef]  # mcp 1.x
+            ToolError,
+        )
     return ToolError
 
 
@@ -85,7 +87,7 @@ def _server_class() -> Any:
 
         return MCPServer
     except ImportError:
-        from mcp.server.fastmcp import FastMCP  # mcp 1.x
+        from mcp.server.fastmcp import FastMCP  # type: ignore[attr-defined]  # mcp 1.x
 
         return FastMCP
 

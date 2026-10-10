@@ -26,18 +26,18 @@ git clone https://github.com/GIBDD-DPS/prizolov-agent-os.git
 cd prizolov-agent-os
 python -m venv .venv && source .venv/bin/activate
 pip install -e ".[all]"
-python -m pytest            # тесты: сеть и ключ Claude не нужны
-ruff check .                # стиль кода
-mypy prizolov_os cli        # типы
-pre-commit install          # те же проверки перед каждым коммитом
+python -m pytest                  # тесты: сеть и ключ Claude не нужны
+ruff check .                      # стиль кода
+python -m mypy prizolov_os cli    # типы
+pre-commit install                # те же проверки перед каждым коммитом
 ```
 
 ## Правила для изменений
 
 - **Тесты.** Каждое изменение поведения сопровождается тестом. Модель (`FakeLLMClient`),
   котировки и Telegram в тестах имитируются; тесты не ходят в сеть.
-- **Стиль.** Код проходит `ruff check .` и `mypy prizolov_os cli`, длина строки —
-  100 символов. Тексты для пользователя — на русском, понятные человеку без
+- **Стиль.** Код проходит `ruff check .` и `python -m mypy prizolov_os cli`, длина
+  строки — 100 символов. Тексты для пользователя — на русском, понятные человеку без
   технической подготовки.
 - **Шапка авторства.** Новый файл начинается с шапки проекта. Проще всего запустить
   `python scripts/stamp_headers.py`, а `--check` проверит все файлы (это делает и CI).

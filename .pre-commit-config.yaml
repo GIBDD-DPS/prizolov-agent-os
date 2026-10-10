@@ -22,7 +22,7 @@ repos:
         pass_filenames: false
       - id: mypy
         name: mypy (типы)
-        entry: mypy prizolov_os cli
+        entry: python -m mypy prizolov_os cli
         language: system
         types: [python]
         pass_filenames: false
